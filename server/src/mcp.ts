@@ -1,8 +1,11 @@
-import type { FastifyInstance } from 'fastify';
+import type { FastifyInstance, FastifyReply } from 'fastify';
+import { requireMcpAuth } from '@better-auth/mcp';
+import { fromNodeHeaders } from 'better-auth/node';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { z } from 'zod';
 import { config } from './lib/config.js';
+import { auth } from './lib/auth.js';
 import * as svc from './lib/services.js';
 import { PROFILE_KINDS, WORKFLOW_DSL_DOC } from './lib/schemas.js';
 
@@ -336,12 +339,43 @@ export function buildMcpServer(): McpServer {
   return server;
 }
 
+/**
+ * OAuth 2.1 guard: verifies an access token issued by our own authorization server (signature via JWKS,
+ * issuer, audience = this /mcp resource, expiry). Unauthenticated requests get the RFC 9728
+ * WWW-Authenticate challenge so MCP clients can discover the sign-in flow on their own.
+ */
+const oauthGuard = config.mcpOAuth
+  ? requireMcpAuth(auth, async () => new Response(null, { status: 204 }), {
+      resource: config.mcpResource,
+      // fetch the keys over loopback instead of the public URL (no hairpin through the proxy)
+      jwksUrl: `http://127.0.0.1:${config.port}/api/auth/jwks`,
+    })
+  : null;
+
+async function forward(reply: FastifyReply, res: Response) {
+  reply.code(res.status);
+  res.headers.forEach((v, k) => {
+    if (k !== 'content-length') reply.header(k, v);
+  });
+  return reply.send((await res.text()) || null);
+}
+
+const unauthorized = (message: string) => ({ jsonrpc: '2.0', error: { code: -32001, message }, id: null });
+
 export function registerMcp(app: FastifyInstance) {
   app.all('/mcp', async (req, reply) => {
-    const auth = req.headers.authorization ?? '';
-    const token = auth.startsWith('Bearer ') ? auth.slice(7).trim() : String((req.query as any)?.token ?? '');
-    if (!(await svc.verifyToken(token))) {
-      return reply.code(401).send({ jsonrpc: '2.0', error: { code: -32001, message: 'Unauthorized: a valid API key is required (Authorization: Bearer ...)' }, id: null });
+    const header = req.headers.authorization ?? '';
+    const bearer = header.startsWith('Bearer ') ? header.slice(7).trim() : '';
+    const queryToken = String((req.query as Record<string, unknown>)?.token ?? '');
+    // API keys (ll_… or MCP_TOKEN) and OAuth access tokens are both accepted; the user picks one per client
+    const apiKey = queryToken || (bearer.startsWith('ll_') || (config.mcpToken && bearer === config.mcpToken) ? bearer : '');
+    if (apiKey) {
+      if (!(await svc.verifyToken(apiKey))) return reply.code(401).send(unauthorized('Invalid API key'));
+    } else if (oauthGuard) {
+      const res = await oauthGuard(new Request(config.mcpResource, { method: req.method, headers: fromNodeHeaders(req.headers) }));
+      if (res.status !== 204) return forward(reply, res);
+    } else {
+      return reply.code(401).send(unauthorized('Unauthorized: an API key is required (Authorization: Bearer ll_...)'));
     }
     if (req.method !== 'POST') {
       return reply.code(405).header('Allow', 'POST').send({ jsonrpc: '2.0', error: { code: -32000, message: 'Stateless MCP server: POST only' }, id: null });

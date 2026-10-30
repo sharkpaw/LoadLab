@@ -118,16 +118,24 @@ Prebuilt multi-arch images are published to `ghcr.io/sharkpaw/loadlab` for every
 
 ## Use it with AI agents (MCP)
 
-LoadLab speaks the open [Model Context Protocol](https://modelcontextprotocol.io), so it works with any MCP client that supports Streamable HTTP: Claude, Gemini CLI, ChatGPT, Cursor, VS Code, Windsurf and others. Create an API key under **Settings & MCP**, then add the server:
+LoadLab speaks the open [Model Context Protocol](https://modelcontextprotocol.io), so it works with any MCP client that supports Streamable HTTP: Claude, Gemini CLI, ChatGPT, Cursor, VS Code, Windsurf and others. Pick one of two ways to sign in. **Settings & MCP** shows copy-ready setup for both.
+
+**OAuth (recommended):** add just the server URL. The client discovers LoadLab's OAuth 2.1 server, opens the sign-in page in your browser, and you approve it on a consent screen. Behind this are dynamic client registration and PKCE, and tokens are bound to your `/mcp` resource.
 
 ```bash
-# Claude Code
-claude mcp add --transport http loadlab https://loadlab.example.com/mcp --header "Authorization: Bearer ll_..."
-# Gemini CLI
-gemini mcp add --transport http loadlab https://loadlab.example.com/mcp --header "Authorization: Bearer ll_..."
+claude mcp add --transport http loadlab https://loadlab.example.com/mcp
+gemini mcp add --transport http loadlab https://loadlab.example.com/mcp
 ```
 
-Most other clients take a JSON entry with `url` and an `Authorization` header (the dashboard shows it ready to copy). Clients that cannot send headers can use `https://loadlab.example.com/mcp?token=ll_...`. Keep that URL private, because the key is part of it.
+For ChatGPT or Claude.ai connectors, paste `https://loadlab.example.com/mcp` as the server URL.
+
+**API key:** for clients without OAuth, or for scripts. Create a key under **Settings & MCP**:
+
+```bash
+claude mcp add --transport http loadlab https://loadlab.example.com/mcp --header "Authorization: Bearer ll_..."
+```
+
+Clients that can neither do OAuth nor send headers can use `https://loadlab.example.com/mcp?token=ll_...`. Keep that URL private, because the key is part of it. OAuth needs an HTTPS `PUBLIC_URL` (plain HTTP only on `localhost`); turn it off with `MCP_OAUTH=false`.
 
 LoadLab exposes 25 tools: inspect a page, create, update or debug workflows, draft test plans, read run results and time series, compare runs, view site benchmarks and check system status. Everything an agent creates arrives as a **draft** under *Drafts awaiting review*. Letting MCP start tests directly requires `MCP_ALLOW_RUN=true`, which is off by default.
 
@@ -159,7 +167,7 @@ Example prompts:
 - **Forgot password:** reset links are valid for 30 minutes and work only once, and resetting signs out every session and sends a "password changed" notice. The form never reveals whether an e-mail exists. Without SMTP, the link is printed to the API log for an administrator.
 - **Hardening:** public sign-up is disabled, and sign-in, 2FA and password-reset attempts are rate-limited in Redis. State-changing requests get an origin check, and deleting a user revokes their cached sessions too. CSP, HSTS (on HTTPS) and `X-Frame-Options` are set.
 - **Target safety:** tests can only reach the site's base URL host and its `allowedHosts`. This is enforced both when a plan is compiled and inside k6 at runtime. VUs, rate and duration are capped by `MAX_VUS`, `MAX_RATE` and `MAX_DURATION_SEC`.
-- **API keys** for MCP and automation are revocable and stored only as SHA-256 hashes.
+- **MCP access:** OAuth 2.1 with PKCE, explicit consent and tokens bound to the `/mcp` resource, or revocable API keys stored only as SHA-256 hashes.
 
 ### Admin CLI (server terminal)
 
@@ -194,6 +202,7 @@ All variables are validated at startup with [t3-env](https://github.com/t3-oss/t
 | `MAX_VUS` / `MAX_RATE` / `MAX_DURATION_SEC` | 5000 / 20000 / 14400 | Safety caps |
 | `MCP_ALLOW_RUN` | `false` | Allow MCP clients to start tests |
 | `MCP_ALLOW_DEBUG` | `true` | Allow MCP clients to start 1-iteration debug runs |
+| `MCP_OAUTH` | `true` | OAuth 2.1 sign-in for MCP clients (needs an HTTPS `PUBLIC_URL` or localhost) |
 | `SMTP_HOST` / `SMTP_PORT` / `SMTP_SECURE` / `SMTP_USER` / `SMTP_PASS` / `SMTP_FROM` | — / 587 / false | Optional SMTP for password-reset mail. Without it, reset links go to the API log (`docker compose logs loadlab \| grep "reset link"`) |
 | `TZ` | `UTC` | Time zone (cron schedules) |
 

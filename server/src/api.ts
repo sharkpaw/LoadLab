@@ -12,7 +12,7 @@ import { registerRoutes } from './routes.js';
 import { registerMcp } from './mcp.js';
 
 async function main() {
-  if (env.NODE_ENV === 'production' && config.publicUrl === 'http://localhost:8080') {
+  if (env.NODE_ENV === 'production' && !env.PUBLIC_URL) {
     console.warn('[api] PUBLIC_URL is not set; using http://localhost:8080. Sign-in from another address will fail its origin check.');
   }
   await waitForDb();
@@ -37,6 +37,8 @@ async function main() {
   });
 
   // Accept body-less JSON POSTs ({}) for curl/automation convenience
+  // OAuth token/revoke requests are form-encoded; kept raw and passed through to Better Auth
+  app.addContentTypeParser('application/x-www-form-urlencoded', { parseAs: 'string' }, (_req, body, done) => done(null, body));
   app.removeContentTypeParser('application/json');
   app.addContentTypeParser('application/json', { parseAs: 'string' }, (_req, body, done) => {
     if (!body || !(body as string).trim()) return done(null, {});

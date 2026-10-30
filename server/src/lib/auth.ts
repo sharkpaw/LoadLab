@@ -1,5 +1,7 @@
 import { betterAuth } from 'better-auth';
 import { twoFactor } from 'better-auth/plugins/two-factor';
+import { jwt } from 'better-auth/plugins/jwt';
+import { mcp } from '@better-auth/mcp';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
 import { createEnv } from '@t3-oss/env-core';
 import { count } from 'drizzle-orm';
@@ -90,6 +92,8 @@ export const auth = betterAuth({
       '/change-password': { window: 60, max: 5 },
       '/request-password-reset': { window: 300, max: 3 },
       '/reset-password': { window: 60, max: 5 },
+      '/oauth2/register': { window: 60, max: 10 },
+      '/oauth2/token': { window: 60, max: 30 },
     },
   },
   trustedOrigins: [config.publicUrl, ...config.extraOrigins],
@@ -99,7 +103,26 @@ export const auth = betterAuth({
     ipAddress: { ipAddressHeaders: ['x-forwarded-for'] },
   },
   telemetry: { enabled: false },
-  plugins: [twoFactor({ issuer: 'LoadLab' })],
+  // The JWT plugin's session-to-JWT endpoint is not needed; JWTs are only issued to OAuth clients
+  disabledPaths: ['/token'],
+  plugins: [
+    twoFactor({ issuer: 'LoadLab' }),
+    ...(config.mcpOAuth
+      ? [
+          jwt(),
+          // OAuth 2.1 authorization server for MCP clients (ChatGPT, Claude, Cursor, ...): dynamic client
+          // registration + PKCE, tokens bound to this server's /mcp resource, explicit user consent
+          mcp({
+            loginPage: '/login',
+            consentPage: '/consent',
+            resource: config.mcpResource,
+            allowDynamicClientRegistration: true,
+            allowUnauthenticatedClientRegistration: true,
+            clientRegistrationDefaultApplicationType: 'infer',
+          }),
+        ]
+      : []),
+  ],
 });
 
 /** Creates the first admin if there are no users (tables come from Drizzle migrations). */

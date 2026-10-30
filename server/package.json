@@ -17,6 +17,8 @@
     "admin": "bun src/cli.ts"
   },
   "dependencies": {
+    "@better-auth/mcp": "1.7.10",
+    "@better-auth/oauth-provider": "1.7.10",
     "@fastify/static": "10.1.8",
     "@modelcontextprotocol/sdk": "1.32.2",
     "@t3-oss/env-core": "0.13.11",

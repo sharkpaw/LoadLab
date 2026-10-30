@@ -118,16 +118,24 @@ Her sürümde çok mimarili hazır imaj `ghcr.io/sharkpaw/loadlab` adresine yay�
 
 ## Yapay zekâ ajanlarıyla kullanım (MCP)
 
-LoadLab açık [Model Context Protocol](https://modelcontextprotocol.io) standardını kullanır. Bu yüzden Streamable HTTP destekleyen her MCP istemcisiyle çalışır: Claude, Gemini CLI, ChatGPT, Cursor, VS Code, Windsurf ve diğerleri. **Ayarlar ve MCP**'den bir API anahtarı oluşturup sunucuyu ekleyin:
+LoadLab açık [Model Context Protocol](https://modelcontextprotocol.io) standardını kullanır. Bu yüzden Streamable HTTP destekleyen her MCP istemcisiyle çalışır: Claude, Gemini CLI, ChatGPT, Cursor, VS Code, Windsurf ve diğerleri. İki giriş yönteminden birini seçin; **Ayarlar ve MCP** ikisinin de hazır kurulumunu gösterir.
+
+**OAuth (önerilen):** yalnızca sunucu adresini ekleyin. İstemci LoadLab'in OAuth 2.1 sunucusunu kendisi bulur, giriş sayfasını tarayıcınızda açar ve onay ekranında izin verirsiniz. Arkada dinamik istemci kaydı ve PKCE çalışır; token'lar sizin `/mcp` kaynağınıza bağlıdır.
 
 ```bash
-# Claude Code
-claude mcp add --transport http loadlab https://loadlab.ornek.com/mcp --header "Authorization: Bearer ll_..."
-# Gemini CLI
-gemini mcp add --transport http loadlab https://loadlab.ornek.com/mcp --header "Authorization: Bearer ll_..."
+claude mcp add --transport http loadlab https://loadlab.ornek.com/mcp
+gemini mcp add --transport http loadlab https://loadlab.ornek.com/mcp
 ```
 
-Diğer istemcilerin çoğu `url` ve `Authorization` header'ı içeren bir JSON girdisi ister; panel bunu kopyalanmaya hazır gösterir. Header gönderemeyen istemciler `https://loadlab.ornek.com/mcp?token=ll_...` adresini kullanabilir. Anahtar bu adresin içinde olduğu için adresi gizli tutun.
+ChatGPT ya da Claude.ai bağlayıcılarında sunucu adresi olarak `https://loadlab.ornek.com/mcp` yapıştırmanız yeterli.
+
+**API anahtarı:** OAuth desteklemeyen istemciler ya da betikler için. **Ayarlar ve MCP**'den bir anahtar oluşturun:
+
+```bash
+claude mcp add --transport http loadlab https://loadlab.ornek.com/mcp --header "Authorization: Bearer ll_..."
+```
+
+Ne OAuth ne de header destekleyen istemciler `https://loadlab.ornek.com/mcp?token=ll_...` adresini kullanabilir; anahtar adresin içinde olduğu için adresi gizli tutun. OAuth için `PUBLIC_URL` HTTPS olmalıdır (düz HTTP yalnızca `localhost`'ta); kapatmak için `MCP_OAUTH=false`.
 
 25 araç sunulur: sayfa inceleme, workflow oluşturma/güncelleme/deneme, test planı taslağı, koşu sonuçları ve zaman serisi, koşu karşılaştırma, site benchmark'ı, sistem durumu. Ajanın oluşturduğu her şey **taslak** olarak *İnceleme bekleyen taslaklar* bölümüne düşer. MCP'nin testi doğrudan başlatabilmesi için `MCP_ALLOW_RUN=true` gerekir; bu varsayılan olarak kapalıdır.
 
@@ -159,7 +167,7 @@ Diğer istemcilerin çoğu `url` ve `Authorization` header'ı içeren bir JSON g
 - **Şifremi unuttum:** Sıfırlama bağlantısı 30 dakika geçerlidir ve tek kullanımlıktır. Sıfırlama tüm oturumları kapatır ve "şifreniz değişti" bildirimi gönderir. Form e-postanın kayıtlı olup olmadığını belli etmez. SMTP yoksa bağlantı yönetici için API günlüğüne basılır.
 - **Sıkılaştırma:** Dışarıdan kayıt kapalıdır. Giriş, 2FA ve şifre sıfırlama denemeleri Redis'te hız sınırlıdır. Durum değiştiren isteklerde köken denetimi yapılır. Bir kullanıcı silindiğinde önbellekteki oturumları da kapatılır. CSP, HSTS (HTTPS'te) ve `X-Frame-Options` başlıkları ayarlıdır.
 - **Hedef güvenliği:** Testler yalnızca sitenin temel URL hostuna ve `allowedHosts` listesine gidebilir. Bu hem plan derlenirken hem de k6 çalışırken denetlenir. VU, hız ve süre `MAX_VUS`, `MAX_RATE`, `MAX_DURATION_SEC` ile sınırlıdır.
-- **API anahtarları** (MCP ve otomasyon için) iptal edilebilir; veritabanında yalnızca SHA-256 özetleri tutulur.
+- **MCP erişimi:** PKCE'li, açık onaylı ve token'ları `/mcp` kaynağına bağlı OAuth 2.1 ya da veritabanında yalnızca SHA-256 özeti tutulan, iptal edilebilir API anahtarları.
 
 ### Yönetim komutları (sunucu terminali)
 
@@ -194,6 +202,7 @@ Tüm değişkenler açılışta [t3-env](https://github.com/t3-oss/t3-env) ve zo
 | `MAX_VUS` / `MAX_RATE` / `MAX_DURATION_SEC` | 5000 / 20000 / 14400 | Güvenlik üst sınırları |
 | `MCP_ALLOW_RUN` | `false` | MCP istemcilerinin test başlatabilmesi |
 | `MCP_ALLOW_DEBUG` | `true` | MCP istemcilerinin 1 iterasyonluk deneme çalıştırabilmesi |
+| `MCP_OAUTH` | `true` | MCP istemcileri için OAuth 2.1 girişi (HTTPS `PUBLIC_URL` ya da localhost gerekir) |
 | `SMTP_HOST` / `SMTP_PORT` / `SMTP_SECURE` / `SMTP_USER` / `SMTP_PASS` / `SMTP_FROM` | — / 587 / false | Şifre sıfırlama e-postası için isteğe bağlı SMTP. Yoksa bağlantı API günlüğüne yazılır (`docker compose logs loadlab \| grep "reset link"`) |
 | `TZ` | `UTC` | Saat dilimi (cron zamanlamaları) |
 

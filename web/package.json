@@ -10,6 +10,7 @@
     "i18n:check": "bun scripts/check-i18n.ts"
   },
   "dependencies": {
+    "@better-auth/oauth-provider": "1.7.10",
     "better-auth": "1.7.10",
     "lucide-react": "1.65.0",
     "qrcode": "1.5.4",

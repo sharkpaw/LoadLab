@@ -33,32 +33,62 @@ const CLIENTS = [
   { key: 'url', label: msg('URL only') },
 ] as const;
 
-/** Copy-ready setup for common MCP clients. */
-function ClientSetup({ mcpUrl, tok }: { mcpUrl: string; tok: string }) {
+type Method = 'oauth' | 'key';
+
+/** Copy-ready setup for common MCP clients, with OAuth sign-in or an API key. */
+function ClientSetup({ mcpUrl, tok, oauth }: { mcpUrl: string; tok: string; oauth: boolean }) {
+  const [method, setMethod] = useState<Method>(oauth ? 'oauth' : 'key');
   const [client, setClient] = useState<(typeof CLIENTS)[number]['key']>('claude');
-  const header = `Authorization: Bearer ${tok}`;
+  const header = method === 'key' ? ` --header "Authorization: Bearer ${tok}"` : '';
+  const entry = method === 'key' ? { type: 'http', url: mcpUrl, headers: { Authorization: `Bearer ${tok}` } } : { type: 'http', url: mcpUrl };
   const code = {
-    claude: `claude mcp add --transport http loadlab ${mcpUrl} --header "${header}"`,
-    gemini: `gemini mcp add --transport http loadlab ${mcpUrl} --header "${header}"`,
-    json: JSON.stringify({ mcpServers: { loadlab: { type: 'http', url: mcpUrl, headers: { Authorization: `Bearer ${tok}` } } } }, null, 2),
-    url: `${mcpUrl}?token=${tok}`,
+    claude: `claude mcp add --transport http loadlab ${mcpUrl}${header}`,
+    gemini: `gemini mcp add --transport http loadlab ${mcpUrl}${header}`,
+    json: JSON.stringify({ mcpServers: { loadlab: entry } }, null, 2),
+    url: method === 'key' ? `${mcpUrl}?token=${tok}` : mcpUrl,
   }[client];
+  const methods: { key: Method; label: string; hint: string }[] = [
+    { key: 'oauth', label: t('Sign in with OAuth'), hint: t('Recommended. No key to copy: the client opens LoadLab in your browser, you sign in and approve it.') },
+    { key: 'key', label: t('API key'), hint: t('For clients without OAuth support or for scripts. Create a key above.') },
+  ];
   return (
-    <div>
-      <div className="mb-2 flex flex-wrap gap-1">
-        {CLIENTS.map((c) => (
-          <button
-            key={c.key}
-            onClick={() => setClient(c.key)}
-            className={`rounded-md px-2.5 py-1 text-xs transition-colors ${client === c.key ? 'bg-surface-3 text-ink' : 'text-ink-3 hover:bg-surface-2 hover:text-ink'}`}
-          >
-            {t(c.label)}
-          </button>
-        ))}
+    <div className="space-y-3">
+      <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label={t('Authentication method')}>
+        {methods.map((m) => {
+          const disabled = m.key === 'oauth' && !oauth;
+          return (
+            <button
+              key={m.key}
+              role="radio"
+              aria-checked={method === m.key}
+              disabled={disabled}
+              onClick={() => setMethod(m.key)}
+              className={`rounded-md border px-3 py-2 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${method === m.key ? 'border-accent bg-accent/10' : 'border-line hover:border-line-strong hover:bg-surface-2'}`}
+            >
+              <div className="text-sm font-medium">{m.label}</div>
+              <div className="mt-0.5 text-[11px] leading-snug text-ink-3">{m.hint}</div>
+            </button>
+          );
+        })}
       </div>
-      <CodeBlock code={code} />
-      {client === 'json' && <p className="mt-1.5 text-xs text-ink-3">{t('For Cursor, VS Code, Windsurf and most other clients. Some use “serverUrl” or “httpUrl” instead of “url”.')}</p>}
-      {client === 'url' && <p className="mt-1.5 text-xs text-warn">{t('For clients that cannot send headers (e.g. ChatGPT connectors). The key is part of the URL, so keep it private.')}</p>}
+      {!oauth && <p className="text-xs text-warn">{t('OAuth is off: it needs an HTTPS PUBLIC_URL (or localhost) and MCP_OAUTH=true.')}</p>}
+      <div>
+        <div className="mb-2 flex flex-wrap gap-1">
+          {CLIENTS.map((c) => (
+            <button
+              key={c.key}
+              onClick={() => setClient(c.key)}
+              className={`rounded-md px-2.5 py-1 text-xs transition-colors ${client === c.key ? 'bg-surface-3 text-ink' : 'text-ink-3 hover:bg-surface-2 hover:text-ink'}`}
+            >
+              {t(c.label)}
+            </button>
+          ))}
+        </div>
+        <CodeBlock code={code} />
+        {client === 'json' && <p className="mt-1.5 text-xs text-ink-3">{t('For Cursor, VS Code, Windsurf and most other clients. Some use “serverUrl” or “httpUrl” instead of “url”.')}</p>}
+        {client === 'url' && method === 'key' && <p className="mt-1.5 text-xs text-warn">{t('For clients that cannot send headers (e.g. ChatGPT connectors). The key is part of the URL, so keep it private.')}</p>}
+        {client === 'url' && method === 'oauth' && <p className="mt-1.5 text-xs text-ink-3">{t('Paste this URL into clients that only ask for a server address (e.g. ChatGPT or Claude.ai connectors); they start the sign-in themselves.')}</p>}
+      </div>
     </div>
   );
 }
@@ -132,7 +162,7 @@ export default function SettingsPage({ me, onChange }: { me: Me; onChange: () =>
               <CodeBlock code={mcpUrl} />
             </Field>
             <p className="text-xs text-ink-3">{t('Works with any MCP client that supports Streamable HTTP: Claude, Gemini, ChatGPT, Cursor, VS Code, Windsurf and others.')}</p>
-            <ClientSetup mcpUrl={mcpUrl} tok={tok} />
+            <ClientSetup mcpUrl={mcpUrl} tok={tok} oauth={me.mcpOAuth} />
             <div className="flex items-center gap-2 text-xs text-ink-3">
               {t('Starting tests over MCP:')}
               {me.mcpAllowRun ? <Badge tone="warn">{t('on (MCP_ALLOW_RUN=true)')}</Badge> : <Badge tone="good">{t('off — drafts are started from the dashboard')}</Badge>}

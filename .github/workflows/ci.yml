@@ -105,6 +105,13 @@ jobs:
           ADMIN_PASSWORD: ${{ env.SERVICE_PASSWORD_ADMIN }}
         run: bun test/e2e/smoke.ts
 
+      - name: MCP OAuth flow
+        working-directory: server
+        env:
+          BASE_URL: http://localhost:8080
+          ADMIN_PASSWORD: ${{ env.SERVICE_PASSWORD_ADMIN }}
+        run: bun test/e2e/oauth.ts
+
       - name: Service logs
         if: failure()
         run: docker compose logs --no-color --tail=300

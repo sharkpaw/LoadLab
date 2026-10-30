@@ -9,6 +9,7 @@ import { Logo } from './components/Logo';
 import { LanguageSwitch } from './components/LanguageSwitch';
 import LoginPage from './pages/Login';
 import ResetPasswordPage from './pages/ResetPassword';
+import ConsentPage from './pages/Consent';
 import DashboardPage from './pages/Dashboard';
 import SitesPage from './pages/Sites';
 import SiteDetailPage from './pages/SiteDetail';
@@ -26,6 +27,7 @@ export interface Me {
   user: { id: string; name: string; email: string; twoFactorEnabled?: boolean | null };
   publicUrl: string;
   mcpAllowRun: boolean;
+  mcpOAuth: boolean;
   limits: { maxVus: number; maxRate: number; maxDurationSec: number };
 }
 
@@ -44,7 +46,7 @@ function Shell({ me, onLogout, onRefresh }: { me: Me; onLogout: () => void; onRe
   const nav = useNavigate();
   return (
     <div className="flex min-h-screen">
-      <aside className={cx('fixed inset-y-0 left-0 z-40 flex w-60 shrink-0 flex-col border-r border-line bg-surface transition-transform md:static md:translate-x-0', open ? 'translate-x-0' : '-translate-x-full')}>
+      <aside className={cx('fixed inset-y-0 left-0 z-40 flex w-60 shrink-0 flex-col border-r border-line bg-surface transition-transform md:sticky md:top-0 md:h-dvh md:self-start md:translate-x-0', open ? 'translate-x-0' : '-translate-x-full')}>
         <div className="flex h-14 items-center gap-2 border-b border-line px-4">
           <Logo className="size-8" />
           <div>
@@ -52,7 +54,7 @@ function Shell({ me, onLogout, onRefresh }: { me: Me; onLogout: () => void; onRe
             <div className="text-[10px] text-ink-3">{t('k6 load testing platform')}</div>
           </div>
         </div>
-        <nav className="flex-1 space-y-0.5 p-2">
+        <nav className="min-h-0 flex-1 space-y-0.5 overflow-y-auto p-2">
           {NAV.map((n) => (
             <NavLink
               key={n.to}
@@ -136,6 +138,7 @@ function Root() {
     <Routes>
       <Route path="/login" element={me ? <Navigate to="/" replace /> : <LoginPage onLogin={load} />} />
       <Route path="/reset-password" element={<ResetPasswordPage />} />
+      <Route path="/consent" element={<ConsentPage signedIn={!!me} />} />
       <Route path="/*" element={me ? <Shell me={me} onLogout={() => setMe(null)} onRefresh={load} /> : <Navigate to="/login" replace />} />
     </Routes>
   );

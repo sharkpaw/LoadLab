@@ -31,7 +31,7 @@ async function authHandler(req: FastifyRequest, reply: FastifyReply) {
     new Request(new URL(req.url, config.publicUrl), {
       method: req.method,
       headers,
-      body: req.method === 'GET' || req.method === 'HEAD' ? undefined : JSON.stringify(req.body ?? {}),
+      body: req.method === 'GET' || req.method === 'HEAD' ? undefined : typeof req.body === 'string' ? req.body : JSON.stringify(req.body ?? {}),
     }),
   );
   reply.status(res.status);
@@ -62,6 +62,8 @@ async function requireAuth(req: FastifyRequest, reply: FastifyReply) {
 
 export function registerRoutes(app: FastifyInstance) {
   app.route({ method: ['GET', 'POST'], url: '/api/auth/*', handler: authHandler });
+  // OAuth discovery for MCP clients: RFC 9728 protected-resource and RFC 8414 authorization-server metadata
+  app.route({ method: ['GET', 'HEAD'], url: '/.well-known/*', handler: authHandler });
 
   app.get('/api/health', async () => {
     await db.execute(sql`SELECT 1`);
@@ -76,6 +78,7 @@ export function registerRoutes(app: FastifyInstance) {
       user: req.user ?? { id: 'api', email: 'api-key', name: 'API' },
       publicUrl: config.publicUrl,
       mcpAllowRun: config.mcpAllowRun,
+      mcpOAuth: config.mcpOAuth,
       limits: config.limits,
     }));
 

@@ -54,6 +54,7 @@ services:
       MCP_TOKEN: ${MCP_TOKEN:-}
       MCP_ALLOW_RUN: ${MCP_ALLOW_RUN:-false}
       MCP_ALLOW_DEBUG: ${MCP_ALLOW_DEBUG:-true}
+      MCP_OAUTH: ${MCP_OAUTH:-true}
       MAX_VUS: ${MAX_VUS:-5000}
       MAX_RATE: ${MAX_RATE:-20000}
       MAX_DURATION_SEC: ${MAX_DURATION_SEC:-14400}

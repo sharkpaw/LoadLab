@@ -64,6 +64,7 @@ CI (`.github/workflows/ci.yml`) runs all of the above on every push and PR, then
 ## Safety rules (do not weaken)
 
 - A test may only send requests to its site's `baseUrl` host and `allowedHosts`. This is enforced at compile time (`checkStaticHosts`) **and** at runtime in `runner.js` (`hostAllowed`). Keep both.
+- MCP accepts API keys (`ll_…`) and OAuth 2.1 access tokens from `@better-auth/mcp` (verified against our JWKS with the `/mcp` audience). Keep both paths in `registerMcp`, and keep the consent screen.
 - MCP creates **drafts** only; starting a test over MCP is gated by `MCP_ALLOW_RUN` (default off). MCP may edit drafts, not active workflows/plans.
 - Respect `MAX_VUS`, `MAX_RATE`, `MAX_DURATION_SEC` in `buildScenario`.
 - Never log or return secrets: API keys are stored as SHA-256 hashes; Better Auth handles passwords.

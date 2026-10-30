@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { ArrowRight, Bot, KeyRound, Lock, Mail, ShieldCheck, Workflow, Zap } from 'lucide-react';
-import { authClient, authError } from '../lib/auth';
+import { authClient, authError, continueOAuth } from '../lib/auth';
 import { msg, t } from '../lib/i18n';
 import { Alert, Button, Input, PasswordInput } from '../components/ui';
 import { Logo } from '../components/Logo';
@@ -107,13 +107,15 @@ export default function LoginPage({ onLogin }: { onLogin: () => void }) {
           setStep('totp');
           return;
         }
+        if (continueOAuth(data)) return;
         onLogin();
       } else {
-        const { error } =
+        const { data, error } =
           step === 'totp'
             ? await authClient.twoFactor.verifyTotp({ code: code.replace(/\s/g, ''), trustDevice: trust })
             : await authClient.twoFactor.verifyBackupCode({ code: code.trim(), trustDevice: trust });
         if (error) return setError(authError(error));
+        if (continueOAuth(data)) return;
         onLogin();
       }
     } finally {

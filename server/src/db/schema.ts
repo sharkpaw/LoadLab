@@ -242,4 +242,185 @@ export const twoFactor = pgTable(
   (t) => [index().on(t.secret), index().on(t.userId)],
 );
 
-export const authSchema = { user, session, account, verification, twoFactor };
+// --- OAuth 2.1 provider for MCP clients (@better-auth/mcp) and its JWT signing keys ---
+
+const ts = () => timestamp({ withTimezone: true });
+
+export const jwks = pgTable('jwks', {
+  id: text().primaryKey(),
+  publicKey: text().notNull(),
+  privateKey: text().notNull(),
+  alg: text(),
+  crv: text(),
+  createdAt: ts().notNull(),
+  expiresAt: ts(),
+});
+
+export const oauthClient = pgTable(
+  'oauth_client',
+  {
+    id: text().primaryKey(),
+    clientId: text().notNull().unique(),
+    clientSecret: text(),
+    clientDiscoveryId: text(),
+    disabled: boolean().default(false),
+    skipConsent: boolean(),
+    enableEndSession: boolean(),
+    subjectType: text(),
+    scopes: text().array(),
+    clientCredentialsScopes: text().array(),
+    userId: text().references(() => user.id),
+    name: text(),
+    uri: text(),
+    icon: text(),
+    contacts: text().array(),
+    tos: text(),
+    policy: text(),
+    softwareId: text(),
+    softwareVersion: text(),
+    softwareStatement: text(),
+    redirectUris: text().array().notNull(),
+    postLogoutRedirectUris: text().array(),
+    backchannelLogoutUri: text(),
+    backchannelLogoutSessionRequired: boolean(),
+    tokenEndpointAuthMethod: text(),
+    applicationType: text(),
+    jwks: text(),
+    jwksUri: text(),
+    grantTypes: text().array(),
+    responseTypes: text().array(),
+    requirePKCE: boolean(),
+    dpopBoundAccessTokens: boolean().default(false),
+    referenceId: text(),
+    metadata: jsonb(),
+    createdAt: ts(),
+    updatedAt: ts(),
+  },
+  (t) => [index().on(t.userId)],
+);
+
+export const oauthResource = pgTable('oauth_resource', {
+  id: text().primaryKey(),
+  identifier: text().notNull().unique(),
+  name: text().notNull(),
+  accessTokenTtl: integer(),
+  refreshTokenTtl: integer(),
+  signingAlgorithm: text(),
+  signingKeyId: text(),
+  allowedScopes: text().array(),
+  customClaims: jsonb(),
+  dpopBoundAccessTokensRequired: boolean().default(false),
+  disabled: boolean().default(false),
+  policyVersion: integer().default(1),
+  metadata: jsonb(),
+  createdAt: ts(),
+  updatedAt: ts(),
+});
+
+export const oauthClientResource = pgTable(
+  'oauth_client_resource',
+  {
+    id: text().primaryKey(),
+    clientId: text()
+      .notNull()
+      .references(() => oauthClient.clientId, { onDelete: 'cascade' }),
+    resourceId: text()
+      .notNull()
+      .references(() => oauthResource.identifier, { onDelete: 'cascade' }),
+    metadata: jsonb(),
+    createdAt: ts(),
+  },
+  (t) => [index().on(t.clientId), index().on(t.resourceId)],
+);
+
+export const oauthRefreshToken = pgTable(
+  'oauth_refresh_token',
+  {
+    id: text().primaryKey(),
+    token: text().notNull().unique(),
+    clientId: text()
+      .notNull()
+      .references(() => oauthClient.clientId),
+    sessionId: text().references(() => session.id, { onDelete: 'set null' }),
+    userId: text()
+      .notNull()
+      .references(() => user.id),
+    referenceId: text(),
+    authorizationCodeId: text(),
+    resources: text().array(),
+    requestedUserInfoClaims: text().array(),
+    scopes: text().array().notNull(),
+    expiresAt: ts(),
+    createdAt: ts(),
+    revoked: ts(),
+    rotatedAt: ts(),
+    rotationReplayResponse: text(),
+    rotationReplayExpiresAt: ts(),
+    authTime: ts(),
+    confirmation: jsonb(),
+  },
+  (t) => [index().on(t.clientId), index().on(t.sessionId), index().on(t.userId), index().on(t.authorizationCodeId)],
+);
+
+export const oauthAccessToken = pgTable(
+  'oauth_access_token',
+  {
+    id: text().primaryKey(),
+    token: text().unique(),
+    clientId: text()
+      .notNull()
+      .references(() => oauthClient.clientId),
+    sessionId: text().references(() => session.id, { onDelete: 'set null' }),
+    userId: text().references(() => user.id),
+    referenceId: text(),
+    authorizationCodeId: text(),
+    resources: text().array(),
+    requestedUserInfoClaims: text().array(),
+    refreshId: text().references(() => oauthRefreshToken.id),
+    scopes: text().array().notNull(),
+    expiresAt: ts(),
+    createdAt: ts(),
+    revoked: ts(),
+    confirmation: jsonb(),
+  },
+  (t) => [index().on(t.clientId), index().on(t.sessionId), index().on(t.userId), index().on(t.authorizationCodeId), index().on(t.refreshId)],
+);
+
+export const oauthConsent = pgTable(
+  'oauth_consent',
+  {
+    id: text().primaryKey(),
+    clientId: text()
+      .notNull()
+      .references(() => oauthClient.clientId),
+    userId: text().references(() => user.id),
+    referenceId: text(),
+    resources: text().array(),
+    requestedUserInfoClaims: text().array(),
+    scopes: text().array().notNull(),
+    createdAt: ts(),
+    updatedAt: ts(),
+  },
+  (t) => [index().on(t.clientId), index().on(t.userId)],
+);
+
+export const oauthClientAssertion = pgTable('oauth_client_assertion', {
+  id: text().primaryKey(),
+  expiresAt: ts().notNull(),
+});
+
+export const authSchema = {
+  user,
+  session,
+  account,
+  verification,
+  twoFactor,
+  jwks,
+  oauthClient,
+  oauthResource,
+  oauthClientResource,
+  oauthRefreshToken,
+  oauthAccessToken,
+  oauthConsent,
+  oauthClientAssertion,
+};

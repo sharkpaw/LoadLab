@@ -29,12 +29,13 @@ export const env = createEnv({
     WORKER_ID: z.string().optional(),
     DATABASE_URL: z.url({ protocol: /^postgres(ql)?$/, error: (iss) => (iss.input === undefined ? 'is required' : 'must be a postgres:// URL') }),
     REDIS_URL: z.url({ protocol: /^rediss?$/, error: 'must be a redis:// URL' }).default('redis://localhost:6379'),
-    PUBLIC_URL: z.url().default('http://localhost:8080'),
+    PUBLIC_URL: z.url().optional(),
     TRUSTED_ORIGINS: z.string().default(''),
     TRUST_PROXY_HOPS: int(1),
     MCP_TOKEN: z.string().min(16, 'must be at least 16 characters').optional(),
     MCP_ALLOW_RUN: flag(false),
     MCP_ALLOW_DEBUG: flag(true),
+    MCP_OAUTH: flag(true),
     SMTP_HOST: z.string().optional(),
     SMTP_PORT: int(587),
     SMTP_SECURE: flag(false),
@@ -61,7 +62,7 @@ export const config = {
   port: env.PORT,
   databaseUrl: env.DATABASE_URL,
   redisUrl: env.REDIS_URL,
-  publicUrl: trimSlash(env.PUBLIC_URL),
+  publicUrl: trimSlash(env.PUBLIC_URL ?? 'http://localhost:8080'),
   /** Additional origins the panel is accessed from (comma-separated), e.g. a second domain */
   extraOrigins: env.TRUSTED_ORIGINS.split(',').map((s) => trimSlash(s.trim())).filter(Boolean),
   /** Number of reverse proxies in front (Coolify/Traefik = 1). The client IP for rate limiting is derived from this. */
@@ -78,6 +79,9 @@ export const config = {
   mcpToken: env.MCP_TOKEN ?? '',
   mcpAllowRun: env.MCP_ALLOW_RUN,
   mcpAllowDebug: env.MCP_ALLOW_DEBUG,
+  /** OAuth 2.1 sign-in for MCP clients. Needs an HTTPS PUBLIC_URL (plain HTTP only on localhost). */
+  mcpOAuth: env.MCP_OAUTH && /^(https:\/\/|http:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d+)?(\/|$))/.test(env.PUBLIC_URL ?? 'http://localhost:8080'),
+  mcpResource: `${trimSlash(env.PUBLIC_URL ?? 'http://localhost:8080')}/mcp`,
   k6Bin: env.K6_BIN,
   runnerPath: env.RUNNER_PATH,
   webDist: env.WEB_DIST,
