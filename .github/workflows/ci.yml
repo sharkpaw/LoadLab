@@ -81,7 +81,7 @@ jobs:
     env:
       COMPOSE_FILE: docker-compose.yml:docker-compose.ci.yml
       SERVICE_PASSWORD_POSTGRES: ci-postgres-password
-      SERVICE_HEX_64_AUTH: 0000000000000000000000000000000000000000000000000000000000000000
+      SERVICE_HEX_64_AUTH: "ci-only-secret-0123456789abcdef0123456789abcdef"
       SERVICE_PASSWORD_ADMIN: ci-admin-password
       ADMIN_EMAIL: admin@example.com
       PUBLIC_URL: http://localhost:8080
