@@ -662,4 +662,9 @@ export const tr: Record<string, string> = {
   'Only allow clients you started yourself just now. If you did not start this connection, deny it.': 'Yalnızca az önce kendi başlattığınız istemcilere izin verin. Bu bağlantıyı siz başlatmadıysanız reddedin.',
   'Deny': 'Reddet',
   'Allow': 'İzin ver',
+  'Stopped by user': 'Kullanıcı tarafından durduruldu',
+  'Canceled while queued': 'Kuyruktayken iptal edildi',
+  'Maximum duration exceeded': 'Azami süre aşıldı',
+  'Worker shut down': 'Worker kapatıldı',
+  'Worker not responding (crashed or restarted)': 'Worker yanıt vermiyor (çöktü ya da yeniden başlatıldı)',
 };

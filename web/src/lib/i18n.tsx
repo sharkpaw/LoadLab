@@ -67,6 +67,15 @@ export function t(s: string, vars?: Record<string, string | number>): string {
   return interpolate(hit ?? s, vars);
 }
 
+/** Exact server messages (see server executor/services); listed so check-i18n requires their translations. */
+export const SERVER_MESSAGES = [
+  msg('Stopped by user'),
+  msg('Canceled while queued'),
+  msg('Maximum duration exceeded'),
+  msg('Worker shut down'),
+  msg('Worker not responding (crashed or restarted)'),
+];
+
 /**
  * Text produced by the server (stop reasons, warnings, breach reasons) is English.
  * Translate the known patterns; unknown text is shown as-is.

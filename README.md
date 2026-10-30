@@ -17,7 +17,7 @@ A self-hosted load-testing platform built on [k6](https://github.com/grafana/k6)
 
 [Features](#features) · [Screenshots](#screenshots) · [Quick start](#quick-start) · [Deploy on Coolify](#deploy-on-coolify) · [MCP](#use-it-with-ai-agents-mcp) · [Contributing](#contributing)
 
-<img src="docs/images/run-en.jpg" alt="A live load test in LoadLab" width="900">
+<img src="docs/demo.gif" alt="LoadLab tour: sign in, edit a workflow, start a test, watch it live, stop it, check the breakpoint result, the site benchmark and the MCP setup" width="900">
 
 </div>
 

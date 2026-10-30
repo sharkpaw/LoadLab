@@ -17,7 +17,7 @@
 
 [Özellikler](#özellikler) · [Ekran görüntüleri](#ekran-görüntüleri) · [Hızlı başlangıç](#hızlı-başlangıç) · [Coolify](#coolifya-kurulum) · [MCP](#yapay-zekâ-ajanlarıyla-kullanım-mcp) · [Katkı](#katkı)
 
-<img src="docs/images/run-tr.jpg" alt="LoadLab'de bir yük testi" width="900">
+<img src="docs/demo-tr.gif" alt="LoadLab turu: giriş, workflow düzenleme, test başlatma, canlı izleme, durdurma, kırılma noktası sonucu, site benchmark'ı ve MCP kurulumu" width="900">
 
 </div>
 
