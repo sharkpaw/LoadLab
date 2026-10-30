@@ -7,7 +7,7 @@
 # LoadLab
 
 **Sitenizin ne kadar trafiği kaldırabildiğini öğrenin.**<br>
-[k6](https://github.com/grafana/k6) üzerine kurulu, kendi sunucunuzda çalışan bir yük testi platformu. Gerçek kullanıcı yolculuklarını modelleyin, istediğiniz ölçekte çalıştırın, sonuçları canlı izleyin ve her site için performans geçmişi tutun. Testleri MCP üzerinden Claude'a da hazırlatabilirsiniz.
+[k6](https://github.com/grafana/k6) üzerine kurulu, kendi sunucunuzda çalışan bir yük testi platformu. Gerçek kullanıcı yolculuklarını modelleyin, istediğiniz ölçekte çalıştırın, sonuçları canlı izleyin ve her site için performans geçmişi tutun. Testleri MCP üzerinden yapay zekâ ajanlarına da hazırlatıp analiz ettirebilirsiniz.
 
 [![CI](https://github.com/sharkpaw/LoadLab/actions/workflows/ci.yml/badge.svg)](https://github.com/sharkpaw/LoadLab/actions/workflows/ci.yml)
 [![Sürüm](https://img.shields.io/github/v/release/sharkpaw/LoadLab?label=s%C3%BCr%C3%BCm&color=2fbf8f)](https://github.com/sharkpaw/LoadLab/releases)
@@ -15,7 +15,7 @@
 ![k6](https://img.shields.io/badge/altyap%C4%B1-k6-7d64ff)
 ![Docker](https://img.shields.io/badge/kurulum-Docker%20Compose%20%7C%20Coolify-2496ed)
 
-[Özellikler](#özellikler) · [Ekran görüntüleri](#ekran-görüntüleri) · [Hızlı başlangıç](#hızlı-başlangıç) · [Coolify](#coolifya-kurulum) · [MCP](#claude-ile-kullanım-mcp) · [Katkı](#katkı)
+[Özellikler](#özellikler) · [Ekran görüntüleri](#ekran-görüntüleri) · [Hızlı başlangıç](#hızlı-başlangıç) · [Coolify](#coolifya-kurulum) · [MCP](#yapay-zekâ-ajanlarıyla-kullanım-mcp) · [Katkı](#katkı)
 
 <img src="docs/images/run-tr.jpg" alt="LoadLab'de bir yük testi" width="900">
 
@@ -31,7 +31,7 @@ k6 harika bir motor, ama her test için ayrı bir script ve terminalde akan say�
 - 📈 **Canlı sonuçlar.** Kullanıcı sayısını, istek/sn'yi, p50/p95/p99'u ve hataları saniye saniye izleyin. Her testi durdurabilir ya da zorla durdurabilirsiniz.
 - 💥 **Kırılma noktasını bulun.** Kırılma noktası testi yükü sürekli artırır; p95 veya hata oranı sınırı aşınca kendini durdurur ve sağlıklı kalınan en yüksek değeri raporlar.
 - 🗂️ **Her site için benchmark geçmişi.** Koşuları karşılaştırın, bir referans belirleyin, p95 ve kapasitenin zaman içindeki değişimini izleyip gerilemeleri yakalayın.
-- 🤖 **Claude için tasarlandı (MCP).** Ajan sitenizi inceleyebilir, workflow ve test planı taslağı hazırlayıp deneyebilir ve sonuçları okuyabilir. Taslağı siz inceleyip **Başlat**'a basarsınız.
+- 🤖 **Yapay zekâ ajanları için tasarlandı (MCP).** Claude, Gemini, ChatGPT, Cursor ya da başka herhangi bir MCP istemcisi sitenizi inceleyebilir, workflow ve test planı taslağı hazırlayıp deneyebilir ve sonuçları okuyabilir. Taslağı siz inceleyip **Başlat**'a basarsınız.
 - 🔒 **Varsayılan olarak güvenli.** Better Auth ve 2FA, hız sınırlı giriş, kapalı kayıt; testler yalnızca kaydettiğiniz hostlara gidebilir.
 - 🧮 **Kendi kaynak kullanımını gösterir.** LoadLab'in CPU, bellek, veritabanı ve disk kullanımını görürsünüz. Darboğaz sitenizde değil yük üreticisindeyse uyarı alırsınız.
 - 🌐 **Çok dilli panel:** İngilizce ve Türkçe, istediğiniz an değiştirilebilir.
@@ -116,13 +116,18 @@ docker compose up -d --build
 
 Her sürümde çok mimarili hazır imaj `ghcr.io/sharkpaw/loadlab` adresine yayınlanır.
 
-## Claude ile kullanım (MCP)
+## Yapay zekâ ajanlarıyla kullanım (MCP)
 
-**Ayarlar ve MCP**'den bir API anahtarı oluşturun:
+LoadLab açık [Model Context Protocol](https://modelcontextprotocol.io) standardını kullanır. Bu yüzden Streamable HTTP destekleyen her MCP istemcisiyle çalışır: Claude, Gemini CLI, ChatGPT, Cursor, VS Code, Windsurf ve diğerleri. **Ayarlar ve MCP**'den bir API anahtarı oluşturup sunucuyu ekleyin:
 
 ```bash
+# Claude Code
 claude mcp add --transport http loadlab https://loadlab.ornek.com/mcp --header "Authorization: Bearer ll_..."
+# Gemini CLI
+gemini mcp add --transport http loadlab https://loadlab.ornek.com/mcp --header "Authorization: Bearer ll_..."
 ```
+
+Diğer istemcilerin çoğu `url` ve `Authorization` header'ı içeren bir JSON girdisi ister; panel bunu kopyalanmaya hazır gösterir. Header gönderemeyen istemciler `https://loadlab.ornek.com/mcp?token=ll_...` adresini kullanabilir. Anahtar bu adresin içinde olduğu için adresi gizli tutun.
 
 25 araç sunulur: sayfa inceleme, workflow oluşturma/güncelleme/deneme, test planı taslağı, koşu sonuçları ve zaman serisi, koşu karşılaştırma, site benchmark'ı, sistem durumu. Ajanın oluşturduğu her şey **taslak** olarak *İnceleme bekleyen taslaklar* bölümüne düşer. MCP'nin testi doğrudan başlatabilmesi için `MCP_ALLOW_RUN=true` gerekir; bu varsayılan olarak kapalıdır.
 
@@ -135,7 +140,7 @@ claude mcp add --transport http loadlab https://loadlab.ornek.com/mcp --header "
 
 ```
  Tarayıcı ────▶ api (Bun + Fastify) ─ panel · REST · SSE · /mcp · Better Auth
- Claude (MCP) ─▶     │ kuyruk: Postgres (SKIP LOCKED) + Redis ile uyandırma
+ YZ ajanı (MCP) ▶   │ kuyruk: Postgres (SKIP LOCKED) + Redis ile uyandırma
                      ▼
                worker ×N (Bun) ── k6 + runner.js ─────────▶ siteniz
                      │ k6 JSON çıktısı (FIFO) → saniyelik kovalar, adım histogramları
@@ -213,7 +218,7 @@ Proje düzeni ve kurallar için: [AGENTS.md](AGENTS.md).
 | ✅ | Görsel workflow düzenleyici, ortak modüller, HAR içe aktarma, deneme çalıştırması |
 | ✅ | Kırılma noktası / kapasite tespiti dahil yük profilleri |
 | ✅ | Canlı grafikler, durdurma / zorla durdurma, koşu karşılaştırma, site benchmark'ı |
-| ✅ | Claude ile test hazırlamak ve analiz etmek için MCP sunucusu |
+| ✅ | Her yapay zekâ ajanıyla test hazırlamak ve analiz etmek için MCP sunucusu |
 | ✅ | 2FA'lı Better Auth, şifre sıfırlama (SMTP veya günlük) ve yönetim komutları |
 | ✅ | İngilizce ve Türkçe arayüz |
 | ✅ | Coolify uyumlu compose, çok mimarili imajlar, uçtan uca testli CI |

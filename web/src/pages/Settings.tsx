@@ -3,7 +3,7 @@ import { Copy, KeyRound, Plus, Trash2 } from 'lucide-react';
 import type { Me } from '../App';
 import { api, errorText } from '../lib/api';
 import { fmtAgo } from '../lib/format';
-import { t } from '../lib/i18n';
+import { msg, t } from '../lib/i18n';
 import { Alert, Badge, Button, Card, Field, Input, PageHeader, useLoad, useToast } from '../components/ui';
 import { AccountSecurity, UsersCard } from '../components/Security';
 
@@ -22,6 +22,43 @@ function CodeBlock({ code }: { code: string }) {
       >
         <Copy className="size-3.5" />
       </button>
+    </div>
+  );
+}
+
+const CLIENTS = [
+  { key: 'claude', label: 'Claude Code' },
+  { key: 'gemini', label: 'Gemini CLI' },
+  { key: 'json', label: msg('Other clients (JSON)') },
+  { key: 'url', label: msg('URL only') },
+] as const;
+
+/** Copy-ready setup for common MCP clients. */
+function ClientSetup({ mcpUrl, tok }: { mcpUrl: string; tok: string }) {
+  const [client, setClient] = useState<(typeof CLIENTS)[number]['key']>('claude');
+  const header = `Authorization: Bearer ${tok}`;
+  const code = {
+    claude: `claude mcp add --transport http loadlab ${mcpUrl} --header "${header}"`,
+    gemini: `gemini mcp add --transport http loadlab ${mcpUrl} --header "${header}"`,
+    json: JSON.stringify({ mcpServers: { loadlab: { type: 'http', url: mcpUrl, headers: { Authorization: `Bearer ${tok}` } } } }, null, 2),
+    url: `${mcpUrl}?token=${tok}`,
+  }[client];
+  return (
+    <div>
+      <div className="mb-2 flex flex-wrap gap-1">
+        {CLIENTS.map((c) => (
+          <button
+            key={c.key}
+            onClick={() => setClient(c.key)}
+            className={`rounded-md px-2.5 py-1 text-xs transition-colors ${client === c.key ? 'bg-surface-3 text-ink' : 'text-ink-3 hover:bg-surface-2 hover:text-ink'}`}
+          >
+            {t(c.label)}
+          </button>
+        ))}
+      </div>
+      <CodeBlock code={code} />
+      {client === 'json' && <p className="mt-1.5 text-xs text-ink-3">{t('For Cursor, VS Code, Windsurf and most other clients. Some use “serverUrl” or “httpUrl” instead of “url”.')}</p>}
+      {client === 'url' && <p className="mt-1.5 text-xs text-warn">{t('For clients that cannot send headers (e.g. ChatGPT connectors). The key is part of the URL, so keep it private.')}</p>}
     </div>
   );
 }
@@ -47,14 +84,14 @@ export default function SettingsPage({ me, onChange }: { me: Me; onChange: () =>
 
   return (
     <>
-      <PageHeader title={t('Settings & MCP')} subtitle={t('Account security, dashboard users and the Claude (MCP) connection')} />
+      <PageHeader title={t('Settings & MCP')} subtitle={t('Account security, dashboard users and the MCP connection for AI agents')} />
       <div className="grid gap-4 xl:grid-cols-2">
         <AccountSecurity me={me} onChange={onChange} />
         <UsersCard me={me} />
         <Card title={<span className="inline-flex items-center gap-2"><KeyRound className="size-4 text-accent" /> {t('API keys')}</span>}>
           <div className="space-y-4">
             <div className="flex gap-2">
-              <Input value={name} onChange={(e) => setName(e.target.value)} placeholder={t('Key name (e.g. Claude Desktop)')} />
+              <Input value={name} onChange={(e) => setName(e.target.value)} placeholder={t('Key name (e.g. Cursor, Gemini CLI)')} />
               <Button variant="primary" icon={<Plus className="size-4" />} onClick={create}>
                 {t('Create')}
               </Button>
@@ -94,16 +131,8 @@ export default function SettingsPage({ me, onChange }: { me: Me; onChange: () =>
             <Field label={t('Server URL (Streamable HTTP)')}>
               <CodeBlock code={mcpUrl} />
             </Field>
-            <div>
-              <div className="mb-1 text-xs font-medium text-ink-2">Claude Code</div>
-              <CodeBlock code={`claude mcp add --transport http loadlab ${mcpUrl} --header "Authorization: Bearer ${tok}"`} />
-            </div>
-            <div>
-              <div className="mb-1 text-xs font-medium text-ink-2">{t('Claude Desktop / other clients (JSON)')}</div>
-              <CodeBlock
-                code={JSON.stringify({ mcpServers: { loadlab: { type: 'http', url: mcpUrl, headers: { Authorization: `Bearer ${tok}` } } } }, null, 2)}
-              />
-            </div>
+            <p className="text-xs text-ink-3">{t('Works with any MCP client that supports Streamable HTTP: Claude, Gemini, ChatGPT, Cursor, VS Code, Windsurf and others.')}</p>
+            <ClientSetup mcpUrl={mcpUrl} tok={tok} />
             <div className="flex items-center gap-2 text-xs text-ink-3">
               {t('Starting tests over MCP:')}
               {me.mcpAllowRun ? <Badge tone="warn">{t('on (MCP_ALLOW_RUN=true)')}</Badge> : <Badge tone="good">{t('off — drafts are started from the dashboard')}</Badge>}

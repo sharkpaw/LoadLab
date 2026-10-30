@@ -37,7 +37,7 @@ function HeroChart() {
 const FEATURES = [
   { icon: Workflow, title: msg('Real user journeys'), desc: msg('Visit → browse products → sign in → buy, with probabilities and shared modules.') },
   { icon: Zap, title: msg('Find your breaking point'), desc: msg('Ramp until p95 or errors cross your limit and get the healthy capacity.') },
-  { icon: Bot, title: msg('Built for Claude (MCP)'), desc: msg('Let the agent draft workflows and tests; you review and press start.') },
+  { icon: Bot, title: msg('Built for AI agents (MCP)'), desc: msg('Claude, Gemini, ChatGPT or any MCP client drafts workflows and tests; you review and press start.') },
 ];
 
 /** One feature at a time, sliding every few seconds; pauses on hover, dots to jump. */
@@ -251,7 +251,7 @@ export default function LoginPage({ onLogin }: { onLogin: () => void }) {
                   </span>
                   <div className="relative">
                     <Lock className="pointer-events-none absolute top-1/2 left-3 z-10 size-4 -translate-y-1/2 text-ink-3" aria-hidden />
-                    <PasswordInput autoComplete="current-password" className="h-11 pl-9" value={password} onChange={(e) => setPassword(e.target.value)} />
+                    <PasswordInput autoComplete="current-password" className="h-11 pl-9" placeholder="••••••••" value={password} onChange={(e) => setPassword(e.target.value)} />
                   </div>
                 </label>
               </>

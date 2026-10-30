@@ -7,7 +7,7 @@
 # LoadLab
 
 **Know how much traffic your site can take.**<br>
-A self-hosted load-testing platform built on [k6](https://github.com/grafana/k6): model real user journeys, run them at any scale, watch results live and keep a performance history for every site. It also lets Claude draft tests for you over MCP.
+A self-hosted load-testing platform built on [k6](https://github.com/grafana/k6): model real user journeys, run them at any scale, watch results live and keep a performance history for every site. AI agents can also draft and analyse tests for you over MCP.
 
 [![CI](https://github.com/sharkpaw/LoadLab/actions/workflows/ci.yml/badge.svg)](https://github.com/sharkpaw/LoadLab/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/sharkpaw/LoadLab?label=release&color=2fbf8f)](https://github.com/sharkpaw/LoadLab/releases)
@@ -15,7 +15,7 @@ A self-hosted load-testing platform built on [k6](https://github.com/grafana/k6)
 ![k6](https://img.shields.io/badge/powered%20by-k6-7d64ff)
 ![Docker](https://img.shields.io/badge/deploy-Docker%20Compose%20%7C%20Coolify-2496ed)
 
-[Features](#features) · [Screenshots](#screenshots) · [Quick start](#quick-start) · [Deploy on Coolify](#deploy-on-coolify) · [MCP](#use-it-with-claude-mcp) · [Contributing](#contributing)
+[Features](#features) · [Screenshots](#screenshots) · [Quick start](#quick-start) · [Deploy on Coolify](#deploy-on-coolify) · [MCP](#use-it-with-ai-agents-mcp) · [Contributing](#contributing)
 
 <img src="docs/images/run-en.jpg" alt="A live load test in LoadLab" width="900">
 
@@ -31,7 +31,7 @@ k6 is a great engine, but a script per test and a terminal full of numbers don't
 - 📈 **Live results you can act on.** Watch users, requests/s, p50/p95/p99 and errors second by second. You can stop or force-stop any test.
 - 💥 **Find the breaking point.** A breakpoint test keeps raising the load and stops itself when p95 or the error rate crosses your limit. It then reports the highest healthy throughput.
 - 🗂️ **A benchmark history per site.** Compare runs, mark a baseline and track p95 and capacity over time to catch regressions.
-- 🤖 **Built for Claude (MCP).** An agent can inspect your site, draft workflows and test plans, debug them and read the results. You review the draft and press **Start**.
+- 🤖 **Built for AI agents (MCP).** Claude, Gemini, ChatGPT, Cursor or any other MCP client can inspect your site, draft workflows and test plans, debug them and read the results. You review the draft and press **Start**.
 - 🔒 **Secure by default.** Better Auth with 2FA, rate-limited sign-in, no public sign-up, and tests that can only reach the hosts you registered.
 - 🧮 **Know your own footprint.** See LoadLab's CPU, memory, database and disk usage, with a warning when the load generator, not your site, is the bottleneck.
 - 🌐 **Multilingual dashboard:** English and Turkish, switchable at any time.
@@ -116,13 +116,18 @@ Open <http://localhost:8080> and sign in as `admin@example.com` (or your `ADMIN_
 
 Prebuilt multi-arch images are published to `ghcr.io/sharkpaw/loadlab` for every release.
 
-## Use it with Claude (MCP)
+## Use it with AI agents (MCP)
 
-Create an API key under **Settings & MCP**, then:
+LoadLab speaks the open [Model Context Protocol](https://modelcontextprotocol.io), so it works with any MCP client that supports Streamable HTTP: Claude, Gemini CLI, ChatGPT, Cursor, VS Code, Windsurf and others. Create an API key under **Settings & MCP**, then add the server:
 
 ```bash
+# Claude Code
 claude mcp add --transport http loadlab https://loadlab.example.com/mcp --header "Authorization: Bearer ll_..."
+# Gemini CLI
+gemini mcp add --transport http loadlab https://loadlab.example.com/mcp --header "Authorization: Bearer ll_..."
 ```
+
+Most other clients take a JSON entry with `url` and an `Authorization` header (the dashboard shows it ready to copy). Clients that cannot send headers can use `https://loadlab.example.com/mcp?token=ll_...`. Keep that URL private, because the key is part of it.
 
 LoadLab exposes 25 tools: inspect a page, create, update or debug workflows, draft test plans, read run results and time series, compare runs, view site benchmarks and check system status. Everything an agent creates arrives as a **draft** under *Drafts awaiting review*. Letting MCP start tests directly requires `MCP_ALLOW_RUN=true`, which is off by default.
 
@@ -135,7 +140,7 @@ Example prompts:
 
 ```
  Browser ─────▶ api (Bun + Fastify) ─ dashboard · REST · SSE · /mcp · Better Auth
- Claude (MCP) ─▶     │ queue: Postgres (SKIP LOCKED) + Redis wake-up
+ AI agent (MCP) ▶   │ queue: Postgres (SKIP LOCKED) + Redis wake-up
                      ▼
                worker ×N (Bun) ── k6 + runner.js ─────────▶ your site
                      │ k6 JSON output (FIFO) → per-second buckets, per-step histograms
@@ -213,7 +218,7 @@ Project layout and conventions: [AGENTS.md](AGENTS.md).
 | ✅ | Visual workflow editor, shared modules, HAR import, debug runs |
 | ✅ | Load profiles including breakpoint / capacity detection |
 | ✅ | Live charts, stop / force stop, run comparison, site benchmarks |
-| ✅ | MCP server for drafting and analysing tests with Claude |
+| ✅ | MCP server for drafting and analysing tests with any AI agent |
 | ✅ | Better Auth with 2FA, password reset (SMTP or log) and an admin CLI |
 | ✅ | English and Turkish UI |
 | ✅ | Coolify-ready compose, multi-arch images, CI with end-to-end tests |

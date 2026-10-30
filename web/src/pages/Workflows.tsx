@@ -55,7 +55,7 @@ export default function WorkflowsPage() {
           <Loading />
         ) : !data?.length ? (
           <Empty icon={<Workflow className="size-7" />} title={t('No workflows')}>
-            {t('Start from a template, import a HAR file, or ask Claude over MCP to “draft a checkout flow for my site”.')}
+            {t('Start from a template, import a HAR file, or ask an AI agent over MCP to “draft a checkout flow for my site”.')}
           </Empty>
         ) : (
           <table className="w-full text-sm">
