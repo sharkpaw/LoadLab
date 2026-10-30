@@ -1,0 +1,117 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  /* surfaces */
+  --color-bg: #0e0e0d;
+  --color-surface: #161615;
+  --color-surface-2: #1d1d1b;
+  --color-surface-3: #262624;
+  --color-line: #2c2c29;
+  --color-line-strong: #3b3b37;
+
+  /* text */
+  --color-ink: #f0efec;
+  --color-ink-2: #c3c2b7;
+  --color-ink-3: #8b8a82;
+
+  /* accent */
+  --color-accent: #3987e5;
+  --color-accent-strong: #2a78d6;
+
+  /* status (only for status) */
+  --color-good: #2fb67c;
+  --color-warn: #d9a21b;
+  --color-bad: #e66767;
+
+  /* chart series (dark-mode steps) */
+  --color-s1: #3987e5;
+  --color-s2: #d95926;
+  --color-s3: #199e70;
+  --color-s4: #c98500;
+  --color-s5: #d55181;
+  --color-s7: #9085e9;
+}
+
+:root {
+  color-scheme: dark;
+}
+
+html,
+body {
+  background: var(--color-bg);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-line-strong) transparent;
+}
+
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+input,
+select,
+textarea {
+  color-scheme: dark;
+}
+
+/* --- login hero --- */
+.ll-grid {
+  background-image:
+    linear-gradient(to right, var(--color-line) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--color-line) 1px, transparent 1px);
+  background-size: 40px 40px;
+  mask-image: radial-gradient(ellipse at 30% 40%, black 20%, transparent 75%);
+}
+
+.ll-draw {
+  stroke-dasharray: 700;
+  stroke-dashoffset: 700;
+  animation: ll-draw 2.4s ease-out forwards;
+}
+.ll-fade {
+  opacity: 0;
+  animation: ll-fade 1s ease-out 0.8s forwards;
+}
+.ll-delay {
+  animation-delay: 0.5s;
+}
+.ll-delay-2 {
+  animation-delay: 2.2s;
+}
+
+@keyframes ll-draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+@keyframes ll-fade {
+  to {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ll-draw,
+  .ll-fade {
+    animation: none;
+    stroke-dashoffset: 0;
+    opacity: 1;
+  }
+}
+
+.ll-slide {
+  transition: transform 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+}
+@media (prefers-reduced-motion: reduce) {
+  .ll-slide {
+    transition: none;
+  }
+}

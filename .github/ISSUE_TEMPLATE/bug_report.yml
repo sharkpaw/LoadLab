@@ -1,0 +1,34 @@
+name: Bug report
+description: Something does not work as expected
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What did you do, what did you expect and what happened instead?
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Create a plan with …
+        2. Press Start
+        3. …
+  - type: input
+    id: version
+    attributes:
+      label: LoadLab version / commit
+  - type: dropdown
+    id: deploy
+    attributes:
+      label: How do you run it?
+      options: [Docker Compose (local), Coolify, Other]
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: "`docker compose logs api worker` and, for a run, the logs section on the run page. Remove secrets."
+      render: shell

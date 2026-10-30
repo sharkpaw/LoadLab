@@ -1,0 +1,38 @@
+{
+  "name": "loadlab-server",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev:api": "bun --watch src/api.ts",
+    "dev:worker": "bun --watch src/worker.ts",
+    "start:api": "bun src/api.ts",
+    "start:worker": "bun src/worker.ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate",
+    "db:studio": "drizzle-kit studio",
+    "db:check": "drizzle-kit check",
+    "test": "bun test test/",
+    "admin": "bun src/cli.ts"
+  },
+  "dependencies": {
+    "@fastify/static": "10.1.8",
+    "@modelcontextprotocol/sdk": "1.32.2",
+    "better-auth": "1.7.10",
+    "cron-parser": "5.10.2",
+    "drizzle-orm": "0.45.3",
+    "fastify": "5.12.7",
+    "ioredis": "5.11.1",
+    "nodemailer": "9.1.1",
+    "pg": "8.23.1",
+    "zod": "4.6.7"
+  },
+  "devDependencies": {
+    "@types/node": "22.20.5",
+    "@types/nodemailer": "^8.0.2",
+    "@types/pg": "8.23.1",
+    "drizzle-kit": "0.31.11",
+    "typescript": "5.9.3"
+  }
+}

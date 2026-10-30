@@ -1,0 +1,9 @@
+# CI / local smoke tests: exposes the API and adds a tiny target site.
+#   docker compose -f docker-compose.yml -f docker-compose.ci.yml up -d --build
+services:
+  api:
+    ports:
+      - "8080:8080"
+  target:
+    image: nginx:1.27-alpine
+    restart: unless-stopped

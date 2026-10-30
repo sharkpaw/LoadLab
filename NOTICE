@@ -1,0 +1,8 @@
+LoadLab
+Copyright 2026 The LoadLab Authors
+
+This product is licensed under the Apache License, Version 2.0 (see LICENSE).
+
+The LoadLab Docker image bundles the k6 binary by Grafana Labs, which is licensed
+under the GNU Affero General Public License v3.0. LoadLab runs k6 as a separate,
+unmodified program. k6 source code: https://github.com/grafana/k6
