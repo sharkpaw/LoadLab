@@ -1,5 +1,5 @@
 # Local development only: publishes the panel on a host port (Coolify doesn't use this file).
 services:
-  api:
+  loadlab:
     ports:
       - "${PORT:-8080}:8080"

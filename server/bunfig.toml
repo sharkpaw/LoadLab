@@ -1,0 +1,3 @@
+[test]
+# Unit tests never connect, but env validation needs a database URL
+preload = ["./test/setup.ts"]

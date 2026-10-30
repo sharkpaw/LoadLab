@@ -30,5 +30,5 @@ body:
     id: logs
     attributes:
       label: Logs
-      description: "`docker compose logs api worker` and, for a run, the logs section on the run page. Remove secrets."
+      description: "`docker compose logs loadlab worker` and, for a run, the logs section on the run page. Remove secrets."
       render: shell

@@ -110,7 +110,7 @@ docker compose up -d --build
 `docker-compose.yml` Coolify kurallarına uygun yazıldı: port yerine `expose` kullanılıyor ve gizli değerleri Coolify `SERVICE_*` adlarıyla otomatik üretiyor.
 
 1. **New Resource → Git repository → Docker Compose** ile bu depoyu ekleyin.
-2. **api** servisine alan adı atayın: `https://loadlab.ornek.com:8080`. Buradaki `:8080` proxy'nin yönlendireceği iç porttur.
+2. **loadlab** servisine alan adı atayın: `https://loadlab.ornek.com:8080`. Buradaki `:8080` proxy'nin yönlendireceği iç porttur.
 3. `ADMIN_EMAIL`'i ayarlayın. `SERVICE_PASSWORD_POSTGRES`, `SERVICE_HEX_64_AUTH` ve `SERVICE_PASSWORD_ADMIN` Coolify tarafından üretilir; ilk giriş şifreniz `SERVICE_PASSWORD_ADMIN`'dir.
 4. Deploy edin, giriş yapın, sonra **Ayarlar**'dan şifrenizi değiştirip 2FA'yı açın.
 
@@ -161,18 +161,20 @@ claude mcp add --transport http loadlab https://loadlab.ornek.com/mcp --header "
 Kimse giriş yapamıyorsa ya da biri telefonunu kaybettiyse:
 
 ```bash
-docker compose exec api bun src/cli.ts users
-docker compose exec api bun src/cli.ts reset-password admin@example.com   # yeni rastgele şifre yazdırır
-docker compose exec api bun src/cli.ts disable-2fa kullanici@example.com
-docker compose exec api bun src/cli.ts revoke-sessions kullanici@example.com
-docker compose exec api bun src/cli.ts create-user ops@example.com --name Ops
+docker compose exec loadlab bun src/cli.ts users
+docker compose exec loadlab bun src/cli.ts reset-password admin@example.com   # yeni rastgele şifre yazdırır
+docker compose exec loadlab bun src/cli.ts disable-2fa kullanici@example.com
+docker compose exec loadlab bun src/cli.ts revoke-sessions kullanici@example.com
+docker compose exec loadlab bun src/cli.ts create-user ops@example.com --name Ops
 ```
 
-Coolify'da **api** konteynerinin terminalini açıp aynı `bun src/cli.ts …` komutlarını çalıştırın.
+Coolify'da **loadlab** konteynerinin terminalini açıp aynı `bun src/cli.ts …` komutlarını çalıştırın.
 
 Güvenlik açıklarını gizli olarak bildirin: [SECURITY.md](SECURITY.md).
 
 ## Yapılandırma
+
+Tüm değişkenler açılışta [t3-env](https://github.com/t3-oss/t3-env) ve zod ile doğrulanır. Zorunlu bir değişken eksik ya da hatalıysa konteyner yarım yamalak açılmaz; sorunların hepsini listeleyip kapanır.
 
 | Değişken | Varsayılan | Açıklama |
 |---|---|---|
@@ -180,14 +182,14 @@ Güvenlik açıklarını gizli olarak bildirin: [SECURITY.md](SECURITY.md).
 | `SERVICE_HEX_64_AUTH` | — (zorunlu) | Better Auth gizli anahtarı (Coolify üretir) |
 | `SERVICE_PASSWORD_ADMIN` | — (zorunlu) | İlk yönetici şifresi; yalnızca hiç kullanıcı yokken kullanılır |
 | `ADMIN_EMAIL` | `admin@example.com` | İlk yöneticinin e-postası |
-| `PUBLIC_URL` | `SERVICE_URL_API` | Panelin dış adresi (çerezler, köken denetimi, MCP bağlantıları) |
+| `PUBLIC_URL` | `SERVICE_URL_LOADLAB` | Panelin dış adresi (çerezler, köken denetimi, MCP bağlantıları) |
 | `TRUSTED_ORIGINS` | — | Ek panel adresleri (virgülle) |
 | `TRUST_PROXY_HOPS` | `1` | API'nin önündeki ters vekil sayısı (doğrudan açıksa `0`) |
 | `WORKER_REPLICAS` | `1` | Aynı anda çalışabilecek test sayısı |
 | `MAX_VUS` / `MAX_RATE` / `MAX_DURATION_SEC` | 5000 / 20000 / 14400 | Güvenlik üst sınırları |
 | `MCP_ALLOW_RUN` | `false` | MCP istemcilerinin test başlatabilmesi |
 | `MCP_ALLOW_DEBUG` | `true` | MCP istemcilerinin 1 iterasyonluk deneme çalıştırabilmesi |
-| `SMTP_HOST` / `SMTP_PORT` / `SMTP_SECURE` / `SMTP_USER` / `SMTP_PASS` / `SMTP_FROM` | — / 587 / false | Şifre sıfırlama e-postası için isteğe bağlı SMTP. Yoksa bağlantı API günlüğüne yazılır (`docker compose logs api \| grep "reset link"`) |
+| `SMTP_HOST` / `SMTP_PORT` / `SMTP_SECURE` / `SMTP_USER` / `SMTP_PASS` / `SMTP_FROM` | — / 587 / false | Şifre sıfırlama e-postası için isteğe bağlı SMTP. Yoksa bağlantı API günlüğüne yazılır (`docker compose logs loadlab \| grep "reset link"`) |
 | `TZ` | `UTC` | Saat dilimi (cron zamanlamaları) |
 
 ## Geliştirme

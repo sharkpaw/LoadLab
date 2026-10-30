@@ -19,6 +19,7 @@
   "dependencies": {
     "@fastify/static": "10.1.8",
     "@modelcontextprotocol/sdk": "1.32.2",
+    "@t3-oss/env-core": "0.13.11",
     "better-auth": "1.7.10",
     "cron-parser": "5.10.2",
     "drizzle-orm": "0.45.3",

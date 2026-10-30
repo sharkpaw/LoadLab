@@ -1,6 +1,6 @@
 import os from 'node:os';
 import { execFileSync } from 'node:child_process';
-import { config } from './lib/config.js';
+import { config, env } from './lib/config.js';
 import { and, asc, eq, inArray } from 'drizzle-orm';
 import { db, migrate, waitForDb } from './lib/db.js';
 import { runs } from './db/schema.js';
@@ -8,7 +8,7 @@ import { createRedis, keys, redis } from './lib/redis.js';
 import { startReporter } from './lib/sysinfo.js';
 import { active, executeRun, type RunRow } from './worker/executor.js';
 
-const workerId = process.env.WORKER_ID || `worker-${os.hostname()}-${process.pid}`;
+const workerId = env.WORKER_ID ?? `worker-${os.hostname()}-${process.pid}`;
 let shuttingDown = false;
 let k6Version = 'unknown';
 

@@ -1,12 +1,28 @@
 import { betterAuth } from 'better-auth';
 import { twoFactor } from 'better-auth/plugins/two-factor';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
+import { createEnv } from '@t3-oss/env-core';
 import { count } from 'drizzle-orm';
-import { config } from './config.js';
+import { z } from 'zod';
+import { config, onInvalidEnv } from './config.js';
 import { db } from './db.js';
 import { redis } from './redis.js';
 import { passwordChangedMail, passwordResetMail, sendMail } from './mailer.js';
 import { authSchema, user } from '../db/schema.js';
+
+/** Only the API and the CLI load this module, so the worker does not need these secrets. */
+export const authEnv = createEnv({
+  server: {
+    BETTER_AUTH_SECRET: z
+      .string({ error: (iss) => (iss.input === undefined ? 'is required' : undefined) })
+      .min(32, 'must be at least 32 characters (e.g. openssl rand -hex 32)'),
+    ADMIN_EMAIL: z.email().default('admin@example.com'),
+    ADMIN_PASSWORD: z.string().min(10, 'must be at least 10 characters').optional(),
+  },
+  runtimeEnv: process.env,
+  emptyStringAsUndefined: true,
+  onValidationError: onInvalidEnv,
+});
 
 const PREFIX = 'loadlab:auth:';
 const RESET_TTL_MIN = 30;
@@ -22,7 +38,7 @@ export const auth = betterAuth({
   appName: 'LoadLab',
   baseURL: config.publicUrl,
   basePath: '/api/auth',
-  secret: config.authSecret,
+  secret: authEnv.BETTER_AUTH_SECRET,
   database: drizzleAdapter(db, { provider: 'pg', schema: authSchema }),
   secondaryStorage: {
     get: (key) => redis.get(PREFIX + key),
@@ -90,14 +106,11 @@ export const auth = betterAuth({
 export async function setupAuth() {
   const [{ n }] = await db.select({ n: count() }).from(user);
   if (n > 0) return;
-  if (!config.adminEmail || !config.adminPassword) {
-    console.warn('[auth] No users yet. Set ADMIN_EMAIL and ADMIN_PASSWORD to create the first admin.');
+  const { ADMIN_EMAIL, ADMIN_PASSWORD } = authEnv;
+  if (!ADMIN_PASSWORD) {
+    console.warn('[auth] No users yet. Set ADMIN_PASSWORD (and ADMIN_EMAIL) to create the first admin.');
     return;
   }
-  if (config.adminPassword.length < 10) {
-    console.error('[auth] ADMIN_PASSWORD must be at least 10 characters; the first admin was not created.');
-    return;
-  }
-  await auth.api.signUpEmail({ body: { email: config.adminEmail, password: config.adminPassword, name: 'Admin' } });
-  console.log(`[auth] First admin created: ${config.adminEmail}`);
+  await auth.api.signUpEmail({ body: { email: ADMIN_EMAIL, password: ADMIN_PASSWORD, name: 'Admin' } });
+  console.log(`[auth] First admin created: ${ADMIN_EMAIL}`);
 }

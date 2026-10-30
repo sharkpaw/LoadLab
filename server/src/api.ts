@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import Fastify from 'fastify';
 import fastifyStatic from '@fastify/static';
-import { config } from './lib/config.js';
+import { config, env } from './lib/config.js';
 import { migrate, waitForDb } from './lib/db.js';
 import { setupAuth } from './lib/auth.js';
 import { verifyMail } from './lib/mailer.js';
@@ -12,15 +12,15 @@ import { registerRoutes } from './routes.js';
 import { registerMcp } from './mcp.js';
 
 async function main() {
-  if (config.authSecret.startsWith('dev-secret')) {
-    console.warn('[api] WARNING: BETTER_AUTH_SECRET is not set; using the development key. Always set it on a server.');
+  if (env.NODE_ENV === 'production' && config.publicUrl === 'http://localhost:8080') {
+    console.warn('[api] PUBLIC_URL is not set; using http://localhost:8080. Sign-in from another address will fail its origin check.');
   }
   await waitForDb();
   await migrate();
   await setupAuth();
   void verifyMail();
 
-  const app = Fastify({ logger: { level: process.env.LOG_LEVEL ?? 'info' }, bodyLimit: 50 * 1024 * 1024, trustProxy: (_addr: string, hop: number) => hop < config.trustProxyHops });
+  const app = Fastify({ logger: { level: env.LOG_LEVEL }, bodyLimit: 50 * 1024 * 1024, trustProxy: (_addr: string, hop: number) => hop < config.trustProxyHops });
 
   // Security headers
   const https = config.publicUrl.startsWith('https://');

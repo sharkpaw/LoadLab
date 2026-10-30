@@ -1,5 +1,5 @@
 // Admin CLI for the server terminal, e.g. when nobody can sign in any more.
-//   docker compose exec api bun src/cli.ts <command> [args]
+//   docker compose exec loadlab bun src/cli.ts <command> [args]
 import crypto from 'node:crypto';
 import { eq } from 'drizzle-orm';
 import { auth } from './lib/auth.js';

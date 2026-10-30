@@ -41,7 +41,7 @@ bun run dev                  # http://localhost:5173, proxies /api and /mcp to :
 bun run build                # tsc + vite build
 bun run i18n:check           # every t()/msg() string must have a Turkish entry
 
-# admin CLI (inside the api container on a server)
+# admin CLI (inside the loadlab container on a server)
 bun src/cli.ts help         # users, reset-password, disable-2fa, revoke-sessions, create-user, delete-user
 
 # whole stack
@@ -57,6 +57,7 @@ CI (`.github/workflows/ci.yml`) runs all of the above on every push and PR, then
 - **Language:** code, comments, logs, API errors and docs are English. UI text is English source strings wrapped in `t('…')` (or `msg('…')` inside constant arrays, translated at render). Add the Turkish entry to `web/src/locales/tr.ts` in the same change.
 - **Server-generated text** shown in the UI (stop reasons, warnings, breach reasons) is English; `tServer()` in `web/src/lib/i18n.tsx` translates the known patterns. If you change one of those strings on the server, update the pattern too.
 - **Database:** change `src/db/schema.ts`, then generate a migration and commit both. Columns are camelCase in TS and snake_case in SQL (`casing: 'snake_case'`). In correlated subqueries written with `sql\`\`` on single-table selects, qualify the outer column explicitly (`"sites"."id"`): Drizzle does not qualify columns there.
+- **Environment:** never read `process.env` directly. Add new variables to the t3-env schema in `server/src/lib/config.ts` (shared) or `authEnv` in `lib/auth.ts` (API only), and document them in `.env.example` and the README.
 - **Business logic** goes in `services.ts` so REST and MCP behave the same. Throw `HttpError(status, message, details?)` for user-facing errors.
 - **Style:** TypeScript strict, ESM, 2-space indent, single quotes, no default exports on the server. Match the surrounding code; keep comments short and about *why*.
 
