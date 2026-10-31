@@ -5,6 +5,7 @@ import { msg, t } from '../lib/i18n';
 import { Alert, Button, Input, PasswordInput } from '../components/ui';
 import { Logo } from '../components/Logo';
 import { LanguageSwitch } from '../components/LanguageSwitch';
+import { ThemeSwitch } from '../components/ThemeSwitch';
 
 /** Decorative load / latency chart for the brand panel (pure SVG, animated with CSS). */
 function HeroChart() {
@@ -20,7 +21,7 @@ function HeroChart() {
         </linearGradient>
       </defs>
       {[40, 80, 120, 160, 200].map((y) => (
-        <line key={y} x1="0" x2="420" y1={y} y2={y} stroke="#2c2c29" strokeWidth="1" />
+        <line key={y} x1="0" x2="420" y1={y} y2={y} stroke="var(--color-line)" strokeWidth="1" />
       ))}
       <path d={`${vus} L420,210 L0,210 Z`} fill="url(#ll-area)" className="ll-fade" />
       <path d={vus} fill="none" stroke="#3987e5" strokeWidth="2.5" strokeLinecap="round" className="ll-draw" />
@@ -186,8 +187,9 @@ export default function LoginPage({ onLogin }: { onLogin: () => void }) {
       {/* form */}
       <main className="relative flex h-dvh flex-col items-center justify-center gap-6 overflow-y-auto p-6">
         <div className="pointer-events-none absolute inset-x-0 top-0 h-64 bg-gradient-to-b from-accent/10 to-transparent lg:hidden" aria-hidden />
-        <div className="absolute top-5 right-6">
+        <div className="absolute top-5 right-6 flex items-center gap-3">
           <LanguageSwitch />
+          <ThemeSwitch />
         </div>
 
         <form onSubmit={submit} className="relative w-full max-w-sm">
@@ -209,7 +211,7 @@ export default function LoginPage({ onLogin }: { onLogin: () => void }) {
           ) : (
             <>
               <div className="mb-4 grid size-11 place-items-center rounded-xl border border-accent/40 bg-accent/10">
-                <ShieldCheck className="size-5 text-[#86b6ef]" />
+                <ShieldCheck className="size-5 text-tint-blue" />
               </div>
               <h2 className="text-2xl font-semibold tracking-tight">{t('Two-factor authentication')}</h2>
               <p className="mt-1 mb-6 text-sm text-ink-3">{step === 'totp' ? t('6-digit code from your authenticator app') : t('Backup code')}</p>

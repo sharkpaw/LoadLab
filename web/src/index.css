@@ -33,10 +33,54 @@
   --color-s4: #c98500;
   --color-s5: #d55181;
   --color-s7: #9085e9;
+
+  /* soft tints for icons and labels on dark surfaces */
+  --color-tint-blue: #86b6ef;
+  --color-tint-green: #5fc49c;
+  --color-tint-amber: #e3a73c;
+  --color-tint-violet: #b2aaf1;
+  --color-tint-pink: #e381a8;
 }
 
 :root {
   color-scheme: dark;
+}
+
+/* Light theme: <html data-theme="light"> is set by src/lib/theme.ts (and public/theme-init.js before paint). */
+:root[data-theme='light'] {
+  color-scheme: light;
+
+  --color-bg: #f6f6f4;
+  --color-surface: #ffffff;
+  --color-surface-2: #f1f1ee;
+  --color-surface-3: #e7e6e2;
+  --color-line: #e3e2dd;
+  --color-line-strong: #cdccc5;
+
+  --color-ink: #1b1b19;
+  --color-ink-2: #44433e;
+  --color-ink-3: #74736b;
+
+  --color-accent: #2a78d6;
+  --color-accent-strong: #1f66bd;
+
+  --color-good: #1a8a5a;
+  --color-warn: #a26f00;
+  --color-bad: #c94343;
+
+  /* chart series (light-mode steps, validated against the light surface) */
+  --color-s1: #2a78d6;
+  --color-s2: #c4501f;
+  --color-s3: #13865d;
+  --color-s4: #a86f00;
+  --color-s5: #b9406b;
+  --color-s7: #7064d6;
+
+  --color-tint-blue: #1f66bd;
+  --color-tint-green: #13865d;
+  --color-tint-amber: #946200;
+  --color-tint-violet: #5b4fc4;
+  --color-tint-pink: #b0386a;
 }
 
 html,
@@ -54,12 +98,6 @@ body {
 
 .tabular {
   font-variant-numeric: tabular-nums;
-}
-
-input,
-select,
-textarea {
-  color-scheme: dark;
 }
 
 /* --- login hero --- */

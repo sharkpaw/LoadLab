@@ -5,6 +5,7 @@ import { authClient, authError } from '../lib/auth';
 import { msg, t } from '../lib/i18n';
 import { Alert, Button, Loading } from '../components/ui';
 import { LanguageSwitch } from '../components/LanguageSwitch';
+import { ThemeSwitch } from '../components/ThemeSwitch';
 import { Logo } from '../components/Logo';
 
 interface PublicClient {
@@ -58,8 +59,9 @@ export default function ConsentPage({ signedIn }: { signedIn: boolean }) {
   return (
     <div className="relative flex min-h-dvh items-center justify-center p-6">
       <div className="pointer-events-none absolute inset-x-0 top-0 h-64 bg-gradient-to-b from-accent/10 to-transparent" aria-hidden />
-      <div className="absolute top-5 right-6">
+      <div className="absolute top-5 right-6 flex items-center gap-3">
         <LanguageSwitch />
+        <ThemeSwitch />
       </div>
       <div className="relative w-full max-w-md">
         <div className="mb-8 flex items-center gap-3">

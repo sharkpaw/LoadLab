@@ -87,12 +87,12 @@ export const NEW_STEP: Record<string, () => Step> = {
 };
 
 const TYPE_META: Record<string, { label: string; icon: ReactNode; tone: string }> = {
-  page: { label: msg('Page'), icon: <Globe2 className="size-3.5" />, tone: 'text-[#86b6ef]' },
-  request: { label: msg('Request'), icon: <Send className="size-3.5" />, tone: 'text-[#5fc49c]' },
+  page: { label: msg('Page'), icon: <Globe2 className="size-3.5" />, tone: 'text-tint-blue' },
+  request: { label: msg('Request'), icon: <Send className="size-3.5" />, tone: 'text-tint-green' },
   think: { label: msg('Think'), icon: <Clock className="size-3.5" />, tone: 'text-ink-3' },
-  set: { label: msg('Variable'), icon: <Variable className="size-3.5" />, tone: 'text-[#e3a73c]' },
-  group: { label: msg('Group'), icon: <Boxes className="size-3.5" />, tone: 'text-[#b2aaf1]' },
-  include: { label: msg('Module'), icon: <Puzzle className="size-3.5" />, tone: 'text-[#e381a8]' },
+  set: { label: msg('Variable'), icon: <Variable className="size-3.5" />, tone: 'text-tint-amber' },
+  group: { label: msg('Group'), icon: <Boxes className="size-3.5" />, tone: 'text-tint-violet' },
+  include: { label: msg('Module'), icon: <Puzzle className="size-3.5" />, tone: 'text-tint-pink' },
 };
 
 function stepTitle(s: Step, modules: Record<string, string>): string {

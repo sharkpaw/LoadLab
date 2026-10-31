@@ -6,7 +6,7 @@ import { profileLabel } from '../lib/constants';
 import { locale, t } from '../lib/i18n';
 import { fmtMs, fmtNum, fmtPct } from '../lib/format';
 import { Alert, Badge, Button, Card, Empty, Input, Loading, PageHeader, Select, Stat, Tabs, useLoad, useToast } from '../components/ui';
-import { SERIES, TimeChart } from '../components/charts';
+import { ChartGroup, SERIES, TimeChart } from '../components/charts';
 import { SiteForm } from '../components/SiteForm';
 
 export default function SiteDetailPage() {
@@ -92,33 +92,35 @@ export default function SiteDetailPage() {
                 />
                 <span className="text-xs text-ink-3">{t('{n} runs', { n: runs.length })}</span>
               </div>
-              <div className="grid gap-4 lg:grid-cols-2">
-                <Card title={t('Latency trend')}>
-                  <TimeChart
-                    data={trend}
-                    xKey="i"
-                    xFormat={xf}
-                    format={(v) => fmtMs(v)}
-                    series={[
-                      { key: 'p50', label: 'p50', color: SERIES.s1 },
-                      { key: 'p95', label: 'p95', color: SERIES.s2 },
-                    ]}
-                  />
-                </Card>
-                <Card title={t('Average requests/s')}>
-                  <TimeChart data={trend} xKey="i" xFormat={xf} format={(v) => fmtNum(v, 1)} series={[{ key: 'rps', label: 'rps', color: SERIES.s3 }]} />
-                </Card>
-                <Card title={t('Error rate (%)')}>
-                  <TimeChart data={trend} xKey="i" xFormat={xf} format={(v) => `%${v.toFixed(2)}`} series={[{ key: 'err', label: t('errors %'), color: SERIES.bad }]} />
-                </Card>
-                <Card title={t('Capacity (highest healthy rps)')}>
-                  {trend.some((t) => t.cap) ? (
-                    <TimeChart data={trend.filter((t) => t.cap)} xKey="i" xFormat={xf} format={(v) => fmtNum(v, 1)} series={[{ key: 'cap', label: t('capacity rps'), color: SERIES.s7 }]} />
-                  ) : (
-                    <Empty title={t('No breakpoint tests yet')}>{t('Run a plan with the “Breakpoint” profile.')}</Empty>
-                  )}
-                </Card>
-              </div>
+              <ChartGroup>
+                <div className="grid gap-4 lg:grid-cols-2">
+                  <Card title={t('Latency trend')}>
+                    <TimeChart
+                      data={trend}
+                      xKey="i"
+                      xFormat={xf}
+                      format={(v) => fmtMs(v)}
+                      series={[
+                        { key: 'p50', label: 'p50', color: SERIES.s1 },
+                        { key: 'p95', label: 'p95', color: SERIES.s2 },
+                      ]}
+                    />
+                  </Card>
+                  <Card title={t('Average requests/s')}>
+                    <TimeChart data={trend} xKey="i" xFormat={xf} format={(v) => fmtNum(v, 1)} series={[{ key: 'rps', label: 'rps', color: SERIES.s3 }]} />
+                  </Card>
+                  <Card title={t('Error rate (%)')}>
+                    <TimeChart data={trend} xKey="i" xFormat={xf} format={(v) => `%${v.toFixed(2)}`} series={[{ key: 'err', label: t('errors %'), color: SERIES.bad }]} />
+                  </Card>
+                  <Card title={t('Capacity (highest healthy rps)')}>
+                    {trend.some((t) => t.cap) ? (
+                      <TimeChart data={trend.filter((t) => t.cap)} xKey="i" xFormat={xf} format={(v) => fmtNum(v, 1)} series={[{ key: 'cap', label: t('capacity rps'), color: SERIES.s7 }]} />
+                    ) : (
+                      <Empty title={t('No breakpoint tests yet')}>{t('Run a plan with the “Breakpoint” profile.')}</Empty>
+                    )}
+                  </Card>
+                </div>
+              </ChartGroup>
 
               <Card
                 title={t('Run history')}

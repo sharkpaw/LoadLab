@@ -81,7 +81,7 @@ export default function WorkflowsPage() {
                     </td>
                     <td className="px-4 py-2.5 text-ink-2">
                       {w.siteName ?? (
-                        <span className="inline-flex items-center gap-1 text-[#e381a8]">
+                        <span className="inline-flex items-center gap-1 text-tint-pink">
                           <Puzzle className="size-3.5" /> {t('Shared module')}
                         </span>
                       )}

@@ -7,6 +7,7 @@ import { profileLabel, sourceLabel } from '../lib/constants';
 import { t } from '../lib/i18n';
 import { fmtDuration, fmtNum } from '../lib/format';
 import { Alert, Badge, Button, Card, Field, Input, Loading, NumberInput, PageHeader, Select, StatusBadge, Toggle, useLoad, useToast } from '../components/ui';
+import { useConfirmStart } from '../components/StartConfirm';
 import { PROFILE_DEFAULTS, ProfileEditor, type Profile } from '../components/ProfileEditor';
 import { RunTable } from '../components/RunTable';
 import type { Site } from '../components/SiteForm';
@@ -37,6 +38,7 @@ export default function PlanEditorPage({ me }: { me: Me }) {
   const nav = useNavigate();
   const toast = useToast();
   const sites = useLoad(() => api.get<Site[]>('/api/sites'));
+  const confirmStart = useConfirmStart();
 
   const [loaded, setLoaded] = useState(isNew);
   const [meta, setMeta] = useState<any>(null);
@@ -114,6 +116,8 @@ export default function PlanEditorPage({ me }: { me: Me }) {
   };
 
   const start = async () => {
+    const siteName = sites.data?.find((s) => s.id === siteId)?.name;
+    if (!(await confirmStart(name || t('Untitled plan'), [siteName, profileLabel(cfg.profile.kind)].filter(Boolean).join(' · ')))) return;
     let pid = id;
     if (isNew || dirty) {
       const p = await save();

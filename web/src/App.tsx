@@ -4,9 +4,10 @@ import { Activity, ClipboardList, Globe, LayoutDashboard, LogOut, Menu, Server, 
 import { api } from './lib/api';
 import { authClient } from './lib/auth';
 import { msg, t, useLang } from './lib/i18n';
-import { cx, Loading, ToastProvider } from './components/ui';
+import { ConfirmProvider, cx, Loading, ToastProvider } from './components/ui';
 import { Logo } from './components/Logo';
 import { LanguageSwitch } from './components/LanguageSwitch';
+import { ThemeSwitch } from './components/ThemeSwitch';
 import LoginPage from './pages/Login';
 import ResetPasswordPage from './pages/ResetPassword';
 import ConsentPage from './pages/Consent';
@@ -69,7 +70,10 @@ function Shell({ me, onLogout, onRefresh }: { me: Me; onLogout: () => void; onRe
           ))}
         </nav>
         <div className="space-y-2 border-t border-line px-4 py-3 text-xs text-ink-3">
-          <LanguageSwitch />
+          <div className="flex items-center justify-between gap-2">
+            <LanguageSwitch />
+            <ThemeSwitch />
+          </div>
           <div className="flex items-center justify-between gap-2">
             <span className="truncate" title={me.user.email}>
               {me.user.email}
@@ -147,9 +151,11 @@ function Root() {
 export default function App() {
   return (
     <ToastProvider>
-      <BrowserRouter>
-        <Root />
-      </BrowserRouter>
+      <ConfirmProvider>
+        <BrowserRouter>
+          <Root />
+        </BrowserRouter>
+      </ConfirmProvider>
     </ToastProvider>
   );
 }

@@ -60,7 +60,7 @@ export function Card({ title, actions, children, className, pad = true }: { titl
 export function Badge({ children, tone = 'neutral', className }: { children: ReactNode; tone?: 'neutral' | 'accent' | 'good' | 'warn' | 'bad'; className?: string }) {
   const t = {
     neutral: 'bg-surface-3 text-ink-2',
-    accent: 'bg-accent/15 text-[#86b6ef]',
+    accent: 'bg-accent/15 text-tint-blue',
     good: 'bg-good/15 text-good',
     warn: 'bg-warn/15 text-warn',
     bad: 'bg-bad/15 text-bad',
@@ -285,7 +285,7 @@ export function Modal({ open, onClose, title, children, footer, wide }: { open: 
 
 export function Alert({ tone = 'warn', children, title }: { tone?: 'warn' | 'bad' | 'good' | 'accent'; children: ReactNode; title?: ReactNode }) {
   const t = { warn: 'border-warn/30 bg-warn/10', bad: 'border-bad/30 bg-bad/10', good: 'border-good/30 bg-good/10', accent: 'border-accent/30 bg-accent/10' }[tone];
-  const ic = { warn: 'text-warn', bad: 'text-bad', good: 'text-good', accent: 'text-[#86b6ef]' }[tone];
+  const ic = { warn: 'text-warn', bad: 'text-bad', good: 'text-good', accent: 'text-tint-blue' }[tone];
   return (
     <div className={cx('flex gap-2.5 rounded-md border px-3 py-2.5 text-sm', t)}>
       <AlertTriangle className={cx('mt-0.5 size-4 shrink-0', ic)} />
@@ -366,6 +366,52 @@ export function ToastProvider({ children }: { children: ReactNode }) {
 }
 
 export const useToast = () => useContext(ToastCtx);
+
+// ---------------------------------------------------------------------------
+
+interface ConfirmOptions {
+  title: ReactNode;
+  body: ReactNode;
+  confirmLabel: string;
+  icon?: ReactNode;
+}
+const ConfirmCtx = createContext<(o: ConfirmOptions) => Promise<boolean>>(async () => true);
+
+/** Promise-based confirmation dialog: `if (!(await confirm({...}))) return;` */
+export function ConfirmProvider({ children }: { children: ReactNode }) {
+  const [state, setState] = useState<(ConfirmOptions & { resolve: (v: boolean) => void }) | null>(null);
+  const ask = useCallback((o: ConfirmOptions) => new Promise<boolean>((resolve) => setState({ ...o, resolve })), []);
+  const close = useCallback(
+    (v: boolean) => {
+      state?.resolve(v);
+      setState(null);
+    },
+    [state],
+  );
+  const cancel = useCallback(() => close(false), [close]);
+  return (
+    <ConfirmCtx.Provider value={ask}>
+      {children}
+      <Modal
+        open={!!state}
+        onClose={cancel}
+        title={state?.title}
+        footer={
+          <>
+            <Button onClick={cancel}>{t('Cancel')}</Button>
+            <Button variant="primary" icon={state?.icon} onClick={() => close(true)} autoFocus>
+              {state?.confirmLabel}
+            </Button>
+          </>
+        }
+      >
+        {state?.body}
+      </Modal>
+    </ConfirmCtx.Provider>
+  );
+}
+
+export const useConfirm = () => useContext(ConfirmCtx);
 
 // ---------------------------------------------------------------------------
 

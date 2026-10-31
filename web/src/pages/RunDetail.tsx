@@ -6,7 +6,8 @@ import { ACTIVE_STATUSES, profileLabel, sourceLabel } from '../lib/constants';
 import { fmtBytes, fmtClock, fmtCompact, fmtDate, fmtDuration, fmtMs, fmtNum, fmtPct } from '../lib/format';
 import { t, tServer } from '../lib/i18n';
 import { Alert, Badge, Button, Card, Loading, PageHeader, PassBadge, Stat, StatusBadge, cx, useToast } from '../components/ui';
-import { SERIES, TimeChart } from '../components/charts';
+import { useConfirmStart } from '../components/StartConfirm';
+import { ChartGroup, SERIES, TimeChart } from '../components/charts';
 import { DebugTrace, type DebugEntry } from '../components/DebugTrace';
 
 interface Point {
@@ -30,6 +31,7 @@ export default function RunDetailPage() {
   const { id } = useParams();
   const nav = useNavigate();
   const toast = useToast();
+  const confirmStart = useConfirmStart();
   const [run, setRun] = useState<any>(null);
   const [points, setPoints] = useState<Point[]>([]);
   const [steps, setSteps] = useState<any[]>([]);
@@ -185,6 +187,7 @@ export default function RunDetailPage() {
               <Button
                 icon={<RotateCcw className="size-4" />}
                 onClick={async () => {
+                  if (!(await confirmStart(run.name, [run.siteName, profileLabel(run.kind)].filter(Boolean).join(' · ')))) return;
                   try {
                     const r = await api.post(`/api/runs/${id}/rerun`);
                     nav(`/runs/${r.id}`);
@@ -282,39 +285,41 @@ export default function RunDetailPage() {
           </div>
 
           {points.length > 0 && (
-            <div className="mb-4 grid gap-4 lg:grid-cols-2">
-              <Card title={t('Response time')}>
-                <TimeChart
-                  data={chartData}
-                  format={(v) => fmtMs(v)}
-                  series={[
-                    { key: 'p50', label: 'p50', color: SERIES.s1 },
-                    { key: 'p95', label: 'p95', color: SERIES.s2 },
-                    { key: 'p99', label: 'p99', color: SERIES.s3 },
-                  ]}
-                  refY={[
-                    ...(p95Limit ? [{ value: p95Limit, label: t('threshold p95 {v}ms', { v: p95Limit }) }] : []),
-                    ...(autoP95 && autoP95 !== p95Limit ? [{ value: autoP95, label: t('stop at {v}ms', { v: autoP95 }) }] : []),
-                  ]}
-                  refX={breachT !== undefined ? [{ value: breachT, label: breakLabel }] : undefined}
-                />
-              </Card>
-              <Card title={t('Requests / s')}>
-                <TimeChart data={chartData} area format={(v) => fmtNum(v)} series={[{ key: 'rps', label: t('requests/s'), color: SERIES.s1 }]} refX={breachT !== undefined ? [{ value: breachT, label: breakLabel }] : undefined} />
-              </Card>
-              <Card title={t('Virtual users (VUs)')}>
-                <TimeChart data={chartData} area format={(v) => fmtNum(v)} series={[{ key: 'vus', label: 'VU', color: SERIES.s7 }]} />
-              </Card>
-              <Card title={t('Error rate (%)')}>
-                <TimeChart data={chartData} area format={(v) => `${v.toFixed(2)}%`} series={[{ key: 'err', label: t('errors %'), color: SERIES.bad }]} />
-              </Card>
-              {points.some((p) => p.gen_cpu != null) && (
-                <Card title={t('Load generator (k6) CPU %')} className="lg:col-span-2">
-                  <TimeChart data={chartData} height={140} format={(v) => `${Math.round(v)}%`} series={[{ key: 'gen_cpu', label: 'k6 CPU', color: SERIES.s4 }]} />
-                  <p className="mt-2 text-xs text-ink-3">{t('If this approaches ~85% of the core count, the limit is the load generator, not your site.')}</p>
+            <ChartGroup>
+              <div className="mb-4 grid gap-4 lg:grid-cols-2">
+                <Card title={t('Response time')}>
+                  <TimeChart
+                    data={chartData}
+                    format={(v) => fmtMs(v)}
+                    series={[
+                      { key: 'p50', label: 'p50', color: SERIES.s1 },
+                      { key: 'p95', label: 'p95', color: SERIES.s2 },
+                      { key: 'p99', label: 'p99', color: SERIES.s3 },
+                    ]}
+                    refY={[
+                      ...(p95Limit ? [{ value: p95Limit, label: t('threshold p95 {v}ms', { v: p95Limit }) }] : []),
+                      ...(autoP95 && autoP95 !== p95Limit ? [{ value: autoP95, label: t('stop at {v}ms', { v: autoP95 }) }] : []),
+                    ]}
+                    refX={breachT !== undefined ? [{ value: breachT, label: breakLabel }] : undefined}
+                  />
                 </Card>
-              )}
-            </div>
+                <Card title={t('Requests / s')}>
+                  <TimeChart data={chartData} area format={(v) => fmtNum(v)} series={[{ key: 'rps', label: t('requests/s'), color: SERIES.s1 }]} refX={breachT !== undefined ? [{ value: breachT, label: breakLabel }] : undefined} />
+                </Card>
+                <Card title={t('Virtual users (VUs)')}>
+                  <TimeChart data={chartData} area format={(v) => fmtNum(v)} series={[{ key: 'vus', label: 'VU', color: SERIES.s7 }]} />
+                </Card>
+                <Card title={t('Error rate (%)')}>
+                  <TimeChart data={chartData} area format={(v) => `${v.toFixed(2)}%`} series={[{ key: 'err', label: t('errors %'), color: SERIES.bad }]} />
+                </Card>
+                {points.some((p) => p.gen_cpu != null) && (
+                  <Card title={t('Load generator (k6) CPU %')} className="lg:col-span-2">
+                    <TimeChart data={chartData} height={140} format={(v) => `${Math.round(v)}%`} series={[{ key: 'gen_cpu', label: 'k6 CPU', color: SERIES.s4 }]} />
+                    <p className="mt-2 text-xs text-ink-3">{t('If this approaches ~85% of the core count, the limit is the load generator, not your site.')}</p>
+                  </Card>
+                )}
+              </div>
+            </ChartGroup>
           )}
 
           <StepsTable steps={steps} />
@@ -393,7 +398,7 @@ function CapacityCard({ cap, live, breach }: { cap: any; live: boolean; breach: 
       <div className="flex flex-wrap items-start gap-6">
         <div className="flex items-center gap-3">
           <div className="grid size-10 place-items-center rounded-lg bg-accent/20">
-            <Zap className="size-5 text-[#86b6ef]" />
+            <Zap className="size-5 text-tint-blue" />
           </div>
           <div>
             <div className="text-xs text-ink-3">{t('Measured capacity (highest healthy)')}</div>

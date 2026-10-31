@@ -5,7 +5,7 @@ import { profileLabel } from '../lib/constants';
 import { msg, t } from '../lib/i18n';
 import { fmtDate, fmtMs, fmtNum, fmtPct } from '../lib/format';
 import { Alert, Card, Loading, PageHeader, cx, useLoad } from '../components/ui';
-import { SERIES, TimeChart } from '../components/charts';
+import { ChartGroup, SERIES, TimeChart } from '../components/charts';
 
 const ROWS: { key: string; label: string; fmt: (v: any) => string; better: 'lower' | 'higher' }[] = [
   { key: 'p50', label: msg('p50'), fmt: fmtMs, better: 'lower' },
@@ -92,28 +92,30 @@ export default function ComparePage() {
         </div>
       </Card>
 
-      <div className="mb-4 grid gap-4 lg:grid-cols-2">
-        <Card title={t('p95 response time')}>
-          <TimeChart
-            data={merged}
-            format={(v) => fmtMs(v)}
-            series={[
-              { key: 'a_p95', label: msg('A'), color: SERIES.s1 },
-              { key: 'b_p95', label: msg('B'), color: SERIES.s2 },
-            ]}
-          />
-        </Card>
-        <Card title={t('Requests / s')}>
-          <TimeChart
-            data={merged}
-            format={(v) => fmtNum(v)}
-            series={[
-              { key: 'a_rps', label: msg('A'), color: SERIES.s1 },
-              { key: 'b_rps', label: msg('B'), color: SERIES.s2 },
-            ]}
-          />
-        </Card>
-      </div>
+      <ChartGroup>
+        <div className="mb-4 grid gap-4 lg:grid-cols-2">
+          <Card title={t('p95 response time')}>
+            <TimeChart
+              data={merged}
+              format={(v) => fmtMs(v)}
+              series={[
+                { key: 'a_p95', label: msg('A'), color: SERIES.s1 },
+                { key: 'b_p95', label: msg('B'), color: SERIES.s2 },
+              ]}
+            />
+          </Card>
+          <Card title={t('Requests / s')}>
+            <TimeChart
+              data={merged}
+              format={(v) => fmtNum(v)}
+              series={[
+                { key: 'a_rps', label: msg('A'), color: SERIES.s1 },
+                { key: 'b_rps', label: msg('B'), color: SERIES.s2 },
+              ]}
+            />
+          </Card>
+        </div>
+      </ChartGroup>
 
       {stepRows.length > 0 && (
         <Card title={t('p95 per step')} pad={false}>

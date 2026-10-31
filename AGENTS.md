@@ -59,6 +59,7 @@ CI (`.github/workflows/ci.yml`) runs all of the above on every push and PR, then
 - **Database:** change `src/db/schema.ts`, then generate a migration and commit both. Columns are camelCase in TS and snake_case in SQL (`casing: 'snake_case'`). In correlated subqueries written with `sql\`\`` on single-table selects, qualify the outer column explicitly (`"sites"."id"`): Drizzle does not qualify columns there.
 - **Environment:** never read `process.env` directly. Add new variables to the t3-env schema in `server/src/lib/config.ts` (shared) or `authEnv` in `lib/auth.ts` (API only), and document them in `.env.example` and the README.
 - **Business logic** goes in `services.ts` so REST and MCP behave the same. Throw `HttpError(status, message, details?)` for user-facing errors.
+- **Colors:** use the theme tokens (`bg-surface`, `text-ink-2`, `text-tint-blue`, `SERIES.s1` …), never hex values in components. Light-theme values live in `web/src/index.css` under `:root[data-theme='light']`.
 - **Style:** TypeScript strict, ESM, 2-space indent, single quotes, no default exports on the server. Match the surrounding code; keep comments short and about *why*.
 
 ## Safety rules (do not weaken)

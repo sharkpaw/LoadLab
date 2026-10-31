@@ -6,6 +6,7 @@ import { t } from '../lib/i18n';
 import { Alert, Button, PasswordInput } from '../components/ui';
 import { Logo } from '../components/Logo';
 import { LanguageSwitch } from '../components/LanguageSwitch';
+import { ThemeSwitch } from '../components/ThemeSwitch';
 
 export default function ResetPasswordPage() {
   const [qs] = useSearchParams();
@@ -33,8 +34,9 @@ export default function ResetPasswordPage() {
   return (
     <div className="relative flex min-h-screen items-center justify-center p-6">
       <div className="pointer-events-none absolute inset-x-0 top-0 h-64 bg-gradient-to-b from-accent/10 to-transparent" aria-hidden />
-      <div className="absolute top-5 right-6">
+      <div className="absolute top-5 right-6 flex items-center gap-3">
         <LanguageSwitch />
+        <ThemeSwitch />
       </div>
       <form onSubmit={submit} className="relative w-full max-w-sm">
         <div className="mb-8 flex items-center gap-3">
