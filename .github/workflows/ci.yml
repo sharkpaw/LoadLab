@@ -85,6 +85,8 @@ jobs:
       SERVICE_PASSWORD_ADMIN: ci-admin-password
       ADMIN_EMAIL: admin@example.com
       PUBLIC_URL: http://localhost:8080
+      # two workers, so the smoke test can split a run across them
+      WORKER_REPLICAS: 2
     steps:
       - uses: actions/checkout@v4
 

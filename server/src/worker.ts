@@ -1,23 +1,50 @@
 import os from 'node:os';
 import { execFileSync } from 'node:child_process';
 import { config, env } from './lib/config.js';
-import { and, asc, eq, inArray } from 'drizzle-orm';
+import { and, asc, eq, gt, inArray, lte } from 'drizzle-orm';
 import { db, migrate, waitForDb } from './lib/db.js';
 import { runs } from './db/schema.js';
 import { createRedis, keys, redis } from './lib/redis.js';
 import { startReporter } from './lib/sysinfo.js';
-import { active, executeRun, type RunRow } from './worker/executor.js';
+import { active, executeRun, reportShardCrash, type RunRow } from './worker/executor.js';
 
 const workerId = env.WORKER_ID ?? `worker-${os.hostname()}-${process.pid}`;
 let shuttingDown = false;
 let k6Version = 'unknown';
 
-/** Locks and claims the oldest queued run; multiple workers can't take the same run (SKIP LOCKED). */
+const runColumns = { id: runs.id, name: runs.name, kind: runs.kind, status: runs.status, config: runs.config, shards: runs.shards };
+
+/** Workers whose heartbeat says they're free (this one included). */
+async function idleWorkers(): Promise<number> {
+  const found: string[] = [];
+  let cursor = '0';
+  do {
+    const [next, batch] = await redis.scan(cursor, 'MATCH', keys.workerHb('*'), 'COUNT', 200);
+    cursor = next;
+    found.push(...batch);
+  } while (cursor !== '0');
+  const values = found.length ? await redis.mget(...found) : [];
+  const idle = values.filter((v) => {
+    try {
+      return v !== null && JSON.parse(v).activeRun === null;
+    } catch {
+      return false;
+    }
+  }).length;
+  return Math.max(1, idle);
+}
+
+/**
+ * Locks and claims the oldest queued run; multiple workers can't take the same run (SKIP LOCKED).
+ * A distributed run is only taken once enough workers are free, so it waits in the queue instead of
+ * holding a worker while the others finish.
+ */
 async function claim(): Promise<RunRow | null> {
+  const idle = await idleWorkers();
   const next = db
     .select({ id: runs.id })
     .from(runs)
-    .where(eq(runs.status, 'queued'))
+    .where(and(eq(runs.status, 'queued'), lte(runs.shards, idle)))
     .orderBy(asc(runs.createdAt))
     .limit(1)
     .for('update', { skipLocked: true });
@@ -25,8 +52,25 @@ async function claim(): Promise<RunRow | null> {
     .update(runs)
     .set({ status: 'starting', workerId })
     .where(and(inArray(runs.id, next), eq(runs.status, 'queued')))
-    .returning({ id: runs.id, name: runs.name, kind: runs.kind, status: runs.status, config: runs.config });
+    .returning(runColumns);
   return r ?? null;
+}
+
+/** Takes a free helper slot (shard 1..N-1) of a distributed run whose lead is waiting for workers. */
+async function claimHelper(): Promise<{ run: RunRow; shard: number } | null> {
+  const waiting = await db
+    .select({ ...runColumns, workerId: runs.workerId })
+    .from(runs)
+    .where(and(eq(runs.status, 'starting'), gt(runs.shards, 1)))
+    .orderBy(asc(runs.createdAt))
+    .limit(10);
+  for (const { workerId: leadId, ...run } of waiting) {
+    if (leadId === workerId) continue;
+    for (let i = 1; i < run.shards; i++) {
+      if ((await redis.set(keys.shard(run.id, i), workerId, 'EX', 86400, 'NX')) === 'OK') return { run, shard: i };
+    }
+  }
+  return null;
 }
 
 async function main() {
@@ -40,8 +84,9 @@ async function main() {
   await migrate();
   console.log(`[worker] ${workerId} ready — ${k6Version}`);
 
-  const hb = async () => {
-    await redis.set(keys.workerHb(workerId), JSON.stringify({ activeRun: active?.id ?? null, at: Date.now() }), 'EX', 30).catch(() => {});
+  // `busyWith` marks the worker busy right after a claim, before the next 5 s beat
+  const hb = async (busyWith?: string) => {
+    await redis.set(keys.workerHb(workerId), JSON.stringify({ activeRun: busyWith ?? active?.id ?? null, at: Date.now() }), 'EX', 30).catch(() => {});
   };
   await hb();
   setInterval(hb, 5000).unref();
@@ -58,22 +103,43 @@ async function main() {
   const blocking = createRedis();
   while (!shuttingDown) {
     let run: RunRow | null = null;
+    let help: { run: RunRow; shard: number } | null = null;
     try {
-      run = await claim();
+      // helping a run that is waiting for workers comes before starting a new one
+      help = await claimHelper();
+      if (!help) run = await claim();
     } catch (err) {
       console.error('[worker] claim error', (err as Error).message);
       await new Promise((r) => setTimeout(r, 3000));
       continue;
     }
+    if (help) {
+      const { run: r, shard } = help;
+      await hb(r.id);
+      console.log(`[worker] helping: ${r.id} (${r.name}) as worker ${shard + 1}/${r.shards}`);
+      try {
+        await executeRun(r, workerId, shard);
+      } catch (err) {
+        console.error('[worker] shard error', err);
+        await reportShardCrash(r, shard, workerId, err as Error).catch(() => {});
+      }
+      await hb();
+      continue;
+    }
     if (run) {
-      console.log(`[worker] starting: ${run.id} (${run.name})`);
+      await hb(run.id);
+      // wake idle workers so they pick up the helper slots right away
+      if (run.shards > 1) await redis.lpush(keys.queueWake, ...Array(run.shards - 1).fill(run.id)).catch(() => {});
+      console.log(`[worker] starting: ${run.id} (${run.name})${run.shards > 1 ? ` on ${run.shards} workers` : ''}`);
       try {
         await executeRun(run, workerId);
       } catch (err) {
         console.error('[worker] run error', err);
         await db.update(runs).set({ status: 'failed', finishedAt: new Date(), error: (err as Error).message }).where(eq(runs.id, run.id)).catch(() => {});
         await redis.publish(keys.live(run.id), JSON.stringify({ type: 'status', data: { status: 'failed', done: true } })).catch(() => {});
+        if (run.shards > 1) await redis.publish(keys.control(run.id), 'kill').catch(() => {});
       }
+      await hb();
       continue;
     }
     await blocking.blpop(keys.queueWake, 5).catch(() => null);

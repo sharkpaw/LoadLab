@@ -64,7 +64,7 @@ const autoStopSchema = z
   .object({ enabled: z.boolean().optional(), p95Ms: z.number().optional(), errorRate: z.number().optional(), windowSec: z.number().int().optional(), graceSec: z.number().int().optional() })
   .optional();
 const optionsSchema = z
-  .object({ httpTimeoutSec: z.number().int().optional(), insecureSkipTLSVerify: z.boolean().optional(), userAgent: z.string().optional(), gracefulStopSec: z.number().int().optional() })
+  .object({ httpTimeoutSec: z.number().int().optional(), insecureSkipTLSVerify: z.boolean().optional(), userAgent: z.string().optional(), gracefulStopSec: z.number().int().optional(), workers: z.number().int().optional() })
   .optional();
 
 function planConfig(a: any) {

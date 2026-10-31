@@ -59,6 +59,8 @@ Mix several workflows by weight and pick a profile:
 
 Plans also get pass/fail thresholds (p95, p99, error rate, check rate), auto-stop rules and optional cron schedules for nightly benchmarks.
 
+**Distributed runs:** set *Workers* in a plan's advanced options to split one test across several workers when a single worker's CPU is the limit. Each worker runs an equal share of the VUs and rate (k6 execution segments), all of them start from a paused state at the same moment, and the lead worker merges their results into one run: the same live charts, per-step table and summary, plus a per-worker table. A distributed test waits in the queue until enough workers are free; if a worker drops out mid-test, the run stops and keeps what was measured.
+
 ### Runs
 - Live charts over Server-Sent Events, a per-step latency table and status codes, plus a breakdown of where users dropped out.
 - **Stop** (graceful) and **Force stop**, queue cancellation and re-run.
@@ -159,7 +161,7 @@ Example prompts:
 ```
 
 - k6 runs **one generic script** (`server/k6/runner.js`) that interprets the workflow JSON. No code is generated per test.
-- Each worker runs one test at a time for clean measurements. Scale out with `WORKER_REPLICAS`.
+- Each worker runs one test at a time for clean measurements. Scale out with `WORKER_REPLICAS`: more tests in parallel, or one test split across workers (*Workers* in the plan). Workers on other machines can join as long as they reach the same Postgres and Redis.
 - The worker tracks k6's own CPU and warns when the load generator saturates or when iterations are dropped.
 
 ## Security
@@ -199,7 +201,7 @@ All variables are validated at startup with [t3-env](https://github.com/t3-oss/t
 | `PUBLIC_URL` | `SERVICE_URL_LOADLAB` | Public URL of the dashboard (cookies, origin checks, MCP links) |
 | `TRUSTED_ORIGINS` | — | Extra dashboard origins, comma-separated |
 | `TRUST_PROXY_HOPS` | `1` | Reverse proxies in front of the API (`0` if exposed directly) |
-| `WORKER_REPLICAS` | `1` | Number of tests that can run in parallel |
+| `WORKER_REPLICAS` | `1` | Number of workers: tests that can run in parallel, and the most a single test can be split across |
 | `MAX_VUS` / `MAX_RATE` / `MAX_DURATION_SEC` | 5000 / 20000 / 14400 | Safety caps |
 | `MCP_ALLOW_RUN` | `false` | Allow MCP clients to start tests |
 | `MCP_ALLOW_DEBUG` | `true` | Allow MCP clients to start 1-iteration debug runs |
@@ -232,7 +234,7 @@ Project layout and conventions: [AGENTS.md](AGENTS.md).
 | ✅ | Better Auth with 2FA, password reset (SMTP or log) and an admin CLI |
 | ✅ | English and Turkish UI |
 | ✅ | Coolify-ready compose, multi-arch images, CI with end-to-end tests |
-| ⬜ | Distributed runs (one test across several workers) |
+| ✅ | Distributed runs (one test across several workers) |
 | ⬜ | Browser-level steps (k6 browser) for front-end metrics |
 | ⬜ | Notifications (Slack / e-mail / webhooks) on threshold failures |
 | ⬜ | More languages (contributions welcome) |

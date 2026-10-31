@@ -17,7 +17,7 @@ interface PlanCfg {
   profile: Profile;
   thresholds: { p95Ms?: number; p99Ms?: number; errorRate?: number; checksRate?: number };
   autoStop: { enabled: boolean; p95Ms?: number; errorRate?: number; windowSec: number; graceSec: number };
-  options: { httpTimeoutSec?: number; insecureSkipTLSVerify?: boolean; userAgent?: string; gracefulStopSec?: number };
+  options: { httpTimeoutSec?: number; insecureSkipTLSVerify?: boolean; userAgent?: string; gracefulStopSec?: number; workers?: number };
 }
 
 const EMPTY: PlanCfg = {
@@ -262,6 +262,14 @@ export default function PlanEditorPage({ me }: { me: Me }) {
                 <dd>{fmtDuration(preview.meta.estDurationSec)}</dd>
                 <dt className="text-ink-3">{t('Peak VUs')}</dt>
                 <dd className="tabular">{fmtNum(preview.meta.peakVus)}</dd>
+                {preview.meta.shards > 1 && (
+                  <>
+                    <dt className="text-ink-3">{t('Workers')}</dt>
+                    <dd className={preview.meta.shards > preview.workersOnline ? 'text-bad' : ''}>
+                      {t('{n} (of {online} online)', { n: preview.meta.shards, online: preview.workersOnline })}
+                    </dd>
+                  </>
+                )}
                 <dt className="text-ink-3">{t('Flows')}</dt>
                 <dd>{preview.flows.map((f: any) => `${f.name} (${t('{n} requests', { n: f.requests })})`).join(', ')}</dd>
               </dl>
@@ -323,6 +331,12 @@ export default function PlanEditorPage({ me }: { me: Me }) {
                   <NumberInput value={cfg.options.gracefulStopSec} onChange={(v) => upd({ options: { ...cfg.options, gracefulStopSec: v } })} placeholder="10" />
                 </Field>
               </div>
+              <Field
+                label={t('Workers')}
+                hint={t('Split the test across several workers; each sends an equal share of the VUs and rate. Use it when one worker’s CPU is the limit. {online} online.', { online: preview?.workersOnline ?? '?' })}
+              >
+                <NumberInput min={1} max={32} value={cfg.options.workers} onChange={(v) => upd({ options: { ...cfg.options, workers: v && v > 1 ? v : undefined } })} placeholder="1" />
+              </Field>
               <Field label="User-Agent">
                 <Input value={cfg.options.userAgent ?? ''} onChange={(e) => upd({ options: { ...cfg.options, userAgent: e.target.value || undefined } })} placeholder="LoadLab/1.0 (+k6)" />
               </Field>

@@ -98,6 +98,8 @@ export const runs = pgTable(
     config: jsonb().$type<RunnerConfig>().notNull(),
     planSnapshot: jsonb().$type<PlanConfig | Record<string, never>>().notNull().default({}),
     workerId: text(),
+    /** Number of workers the run is split across (1 = not distributed); workerId is the lead worker */
+    shards: integer().notNull().default(1),
     summary: jsonb().$type<Record<string, any>>(),
     capacity: jsonb().$type<Record<string, any>>(),
     thresholdsPassed: boolean(),

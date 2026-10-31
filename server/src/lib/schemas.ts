@@ -181,6 +181,8 @@ export const PlanConfigSchema = z.object({
       insecureSkipTLSVerify: z.boolean().optional(),
       userAgent: z.string().optional(),
       gracefulStopSec: z.number().int().min(0).max(300).optional(),
+      /** Split the test across this many workers (k6 execution segments); each runs 1/N of the VUs and rate. */
+      workers: z.number().int().min(1).max(32).optional(),
     })
     .default({}),
 });

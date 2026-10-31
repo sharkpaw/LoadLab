@@ -74,6 +74,8 @@ export const SERVER_MESSAGES = [
   msg('Maximum duration exceeded'),
   msg('Worker shut down'),
   msg('Worker not responding (crashed or restarted)'),
+  msg('k6 exited before the test started'),
+  msg('could not resume the paused k6 process'),
 ];
 
 /**
@@ -94,6 +96,12 @@ export function tServer(s: string | null | undefined): string {
     return t('Load generator (k6) CPU reached {pct}% ({cores} cores). Results may be limited by the load generator; give the worker more CPU.', { pct: m[1], cores: m[2] });
   }
   if ((m = /^k6 exit code: (.*)$/.exec(s))) return t('k6 exit code: {code}', { code: m[1] });
+  if ((m = /^Worker (\S+): ([\s\S]*)$/.exec(s))) return t('Worker {worker}: {message}', { worker: m[1], message: tServer(m[2]) });
+  if ((m = /^Worker (\S+) stopped responding$/.exec(s))) return t('Worker {worker} stopped responding', { worker: m[1] });
+  if ((m = /^Worker (\S+) sent no results/.exec(s))) return t('Worker {worker} sent no results; its share of the load is missing from the summary', { worker: m[1] });
+  if ((m = /^Only (\d+) of (\d+) workers were free within 60 s$/.exec(s))) return t('Only {a} of {b} workers were free within 60 s', { a: m[1], b: m[2] });
+  if ((m = /^Workers were not ready within 5 minutes \((\d+) of (\d+)\)$/.exec(s))) return t('Workers were not ready within 5 minutes ({a} of {b})', { a: m[1], b: m[2] });
+  if ((m = /^This test needs (\d+) workers, but only (\d+) are online$/.exec(s))) return t('This test needs {n} workers, but only {online} are online', { n: m[1], online: m[2] });
   return s;
 }
 

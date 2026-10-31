@@ -128,6 +128,29 @@ step('a running test can be stopped', async () => {
   assert(done.status === 'stopped', `stopped status ${done.status}`);
 });
 
+step('a run split across two workers merges their results', async () => {
+  const plan = await ok('POST', '/api/plans', {
+    name: 'CI distributed',
+    siteId: ctx.site.id,
+    config: { flows: [{ workflowId: ctx.wf.id, weight: 1 }], profile: { kind: 'constant_vus', vus: 4, duration: 10 }, options: { workers: 2 } },
+  });
+  // the second worker's heartbeat may still be on its way
+  let r: any = null;
+  for (let i = 0; i < 30 && !r; i++) {
+    const res = await call('POST', `/api/plans/${plan.id}/start`);
+    if (res.status === 200 || res.status === 201) r = res.data;
+    else if (res.status === 409) await new Promise((res) => setTimeout(res, 2000));
+    else throw new Error(`start: ${res.status} ${JSON.stringify(res.data)}`);
+  }
+  assert(r, 'two workers came online');
+  const done = await waitRun(r.id, ['completed', 'failed', 'stopped']);
+  assert(done.status === 'completed', `distributed run status ${done.status}: ${done.error}`);
+  assert(done.shards === 2 && done.summary.workers?.length === 2, 'both workers reported');
+  assert(done.summary.workers.every((w: any) => w.requests > 0), 'every worker sent requests');
+  assert(done.summary.requests === done.summary.workers.reduce((a: number, w: any) => a + w.requests, 0), 'totals add up');
+  assert(done.summary.maxVus === 4, `VUs summed across workers (${done.summary.maxVus})`);
+});
+
 step('MCP server lists tools with an API key', async () => {
   const token = await ok('POST', '/api/tokens', { name: 'ci' });
   const res = await fetch(`${BASE}/mcp`, {

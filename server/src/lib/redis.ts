@@ -15,6 +15,10 @@ export const keys = {
   latest: (runId: string) => `loadlab:latest:${runId}`,
   workerHb: (workerId: string) => `loadlab:worker:${workerId}`,
   nodes: 'loadlab:nodes',
+  // distributed runs: helper slot ownership, helper → lead messages, synchronized start time
+  shard: (runId: string, idx: number) => `loadlab:shard:${runId}:${idx}`,
+  inbox: (runId: string) => `loadlab:inbox:${runId}`,
+  go: (runId: string) => `loadlab:go:${runId}`,
 };
 
 /** Multiple listeners per channel over a single subscriber connection. */

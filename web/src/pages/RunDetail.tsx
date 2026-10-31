@@ -38,6 +38,7 @@ export default function RunDetailPage() {
   const [logs, setLogs] = useState<string[]>([]);
   const [debug, setDebug] = useState<DebugEntry[]>([]);
   const [breach, setBreach] = useState<any>(null);
+  const [workers, setWorkers] = useState<{ total: number; claimed: number; ready: number } | null>(null);
   const seen = useRef(new Set<number>());
 
   const loadRun = async () => {
@@ -84,6 +85,7 @@ export default function RunDetailPage() {
           else if (ev.type === 'breach') setBreach(ev.data);
           else if (ev.type === 'status') {
             setRun((x: any) => ({ ...x, status: ev.data.status, stopReason: ev.data.stopReason ?? x.stopReason }));
+            if (ev.data.workers) setWorkers(ev.data.workers);
             if (ev.data.done) {
               es?.close();
               setTimeout(() => {
@@ -169,7 +171,7 @@ export default function RunDetailPage() {
             )}
           </span>
         }
-        subtitle={`${profileLabel(run.kind)} · ${sourceLabel(run.trigger)} · ${fmtDate(run.createdAt)}${run.workerId ? ` · ${run.workerId}` : ''}`}
+        subtitle={`${profileLabel(run.kind)} · ${sourceLabel(run.trigger)} · ${fmtDate(run.createdAt)}${run.shards > 1 ? ` · ${t('{n} workers', { n: run.shards })}` : run.workerId ? ` · ${run.workerId}` : ''}`}
         actions={
           live ? (
             <>
@@ -225,7 +227,13 @@ export default function RunDetailPage() {
         <div className="mb-4">
           <div className="mb-1 flex justify-between text-xs text-ink-3">
             <span>
-              {run.status === 'queued' ? t('Waiting for a free worker…') : t('Elapsed {time}', { time: fmtClock(Math.round(elapsed)) })}
+              {run.status === 'queued'
+                ? run.shards > 1
+                  ? t('Waiting for {n} free workers…', { n: run.shards })
+                  : t('Waiting for a free worker…')
+                : run.status === 'starting' && run.shards > 1
+                  ? t('Starting on {n} workers ({ready} ready)…', { n: run.shards, ready: workers?.ready ?? 0 })
+                  : t('Elapsed {time}', { time: fmtClock(Math.round(elapsed)) })}
               {meta.estDurationSec ? ` / ~${fmtClock(meta.estDurationSec)}` : ''}
             </span>
             <span>{tServer(run.stopReason)}</span>
@@ -352,6 +360,29 @@ export default function RunDetailPage() {
                 <Card title={t('Where did users get stuck?')} pad={false}>
                   <SimpleTable head={[t('Flow → step'), t('Aborted')]} rows={(s.abortedAt ?? []).map((x: any) => [x.key, fmtNum(x.count)])} />
                   {s.errorCodes?.length > 0 && <SimpleTable head={[t('k6 error code'), t('Count')]} rows={s.errorCodes.map((x: any) => [x.key, fmtNum(x.count)])} />}
+                </Card>
+              )}
+              {s.workers?.length > 0 && (
+                <Card title={t('Workers')} pad={false} className="lg:col-span-2">
+                  <SimpleTable
+                    head={[t('Worker'), t('Requests'), t('k6 CPU max'), t('k6 memory max'), t('Result')]}
+                    rows={s.workers.map((w: any) => [
+                      <span className="font-mono text-xs">
+                        {w.shard}. {w.workerId}
+                      </span>,
+                      fmtNum(w.requests),
+                      w.maxCpuPct != null ? `${Math.round(w.maxCpuPct)}%` : '—',
+                      fmtBytes(w.maxRssBytes),
+                      w.error ? (
+                        <span className="text-bad" title={w.error}>
+                          {t('failed')}
+                        </span>
+                      ) : (
+                        <Badge tone="good">{t('OK')}</Badge>
+                      ),
+                    ])}
+                  />
+                  <p className="px-4 py-2.5 text-xs text-ink-3">{t('Each worker ran an equal share of the load. Thresholds pass only if they passed on every worker.')}</p>
                 </Card>
               )}
               {s.checks?.length > 0 && (

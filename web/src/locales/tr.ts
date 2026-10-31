@@ -682,4 +682,25 @@ export const tr: Record<string, string> = {
   'Maximum duration exceeded': 'Azami süre aşıldı',
   'Worker shut down': 'Worker kapatıldı',
   'Worker not responding (crashed or restarted)': 'Worker yanıt vermiyor (çöktü ya da yeniden başlatıldı)',
+
+  // distributed runs
+  '{n} workers': '{n} worker',
+  'Waiting for {n} free workers…': '{n} boş worker bekleniyor…',
+  'Starting on {n} workers ({ready} ready)…': '{n} worker üzerinde başlatılıyor ({ready} hazır)…',
+  'Worker': 'Worker',
+  'k6 CPU max': 'k6 CPU en yüksek',
+  'k6 memory max': 'k6 bellek en yüksek',
+  'OK': 'Tamam',
+  'Each worker ran an equal share of the load. Thresholds pass only if they passed on every worker.': 'Her worker yükün eşit bir payını çalıştırdı. Eşikler yalnızca her worker’da geçtiyse geçmiş sayılır.',
+  '{n} (of {online} online)': '{n} (çevrimiçi {online} worker’dan)',
+  'Split the test across several workers; each sends an equal share of the VUs and rate. Use it when one worker’s CPU is the limit. {online} online.':
+    'Testi birden çok worker’a böler; her biri VU’ların ve hızın eşit bir payını gönderir. Tek worker’ın CPU’su yetmediğinde kullanın. Çevrimiçi: {online}.',
+  'Worker {worker}: {message}': 'Worker {worker}: {message}',
+  'Worker {worker} stopped responding': 'Worker {worker} yanıt vermeyi bıraktı',
+  'Worker {worker} sent no results; its share of the load is missing from the summary': 'Worker {worker} sonuç göndermedi; onun yük payı özette yok',
+  'Only {a} of {b} workers were free within 60 s': '60 sn içinde {b} worker’dan yalnızca {a} tanesi boştu',
+  'Workers were not ready within 5 minutes ({a} of {b})': 'Worker’lar 5 dakika içinde hazır olmadı ({b} worker’dan {a} hazır)',
+  'This test needs {n} workers, but only {online} are online': 'Bu test {n} worker gerektiriyor, ama yalnızca {online} tanesi çevrimiçi',
+  'k6 exited before the test started': 'k6 test başlamadan kapandı',
+  'could not resume the paused k6 process': 'duraklatılmış k6 süreci başlatılamadı',
 };

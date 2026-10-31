@@ -15,6 +15,13 @@
       "when": 1793391791111,
       "tag": "0001_mcp_oauth",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1793469133727,
+      "tag": "0002_run_shards",
+      "breakpoints": true
     }
   ]
 }

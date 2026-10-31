@@ -100,4 +100,14 @@ describe('compileRun', () => {
     const ok = await compileRun(site, { ...cfg, autoStop: { p95Ms: 800 } }, load);
     expect(ok.runner.meta.autoStop.enabled).toBe(true);
   });
+
+  test('workers split the run, but never below one VU each; debug stays on one worker', async () => {
+    const flows = [{ workflowId: ID.main, weight: 1 }];
+    const split = await compileRun(site, { flows, profile: { kind: 'constant_vus', vus: 10 }, options: { workers: 3 } }, load);
+    expect(split.runner.meta.shards).toBe(3);
+    expect((await compileRun(site, { flows, profile: { kind: 'smoke' } }, load)).runner.meta.shards).toBe(1);
+    await expect(compileRun(site, { flows, profile: { kind: 'constant_vus', vus: 2 }, options: { workers: 3 } }, load)).rejects.toBeInstanceOf(CompileError);
+    const dbg = await compileRun(site, { flows, profile: { kind: 'debug' }, options: { workers: 4 } }, load);
+    expect(dbg.runner.meta.shards).toBe(1);
+  });
 });

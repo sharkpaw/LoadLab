@@ -254,7 +254,7 @@ export interface RunnerConfig {
   timeout: string;
   flows: { id: string; name: string; weight: number; resetSession: boolean; variables: Record<string, string>; steps: Step[] }[];
   options: Record<string, unknown>;
-  meta: { kind: Profile['kind']; estDurationSec: number; peakVus: number; arrival: boolean; autoStop: PlanConfig['autoStop'] };
+  meta: { kind: Profile['kind']; estDurationSec: number; peakVus: number; arrival: boolean; autoStop: PlanConfig['autoStop']; shards: number };
 }
 
 export async function compileRun(site: SiteRow, planInput: unknown, load: WorkflowLoader): Promise<{ runner: RunnerConfig; plan: PlanConfig }> {
@@ -288,6 +288,13 @@ export async function compileRun(site: SiteRow, planInput: unknown, load: Workfl
   } catch (e) {
     if (e instanceof CompileError) errors.push(...e.errors);
     else throw e;
+  }
+
+  // A debug run is one VU; splitting it makes no sense. Every shard needs at least one VU.
+  const shards = plan.profile.kind === 'debug' ? 1 : (plan.options.workers ?? 1);
+  if (sc && shards > 1) {
+    const minVus = sc.arrival ? Number((sc.scenario as { preAllocatedVUs: number }).preAllocatedVUs) : sc.peakVus;
+    if (shards > minVus) errors.push(`workers (${shards}) cannot exceed the VU count (${minVus}); each worker needs at least one VU`);
   }
 
   if (plan.profile.kind === 'breakpoint') {
@@ -330,7 +337,7 @@ export async function compileRun(site: SiteRow, planInput: unknown, load: Workfl
       timeout: `${plan.options.httpTimeoutSec ?? 30}s`,
       flows,
       options,
-      meta: { kind: plan.profile.kind, estDurationSec: sc.estDurationSec, peakVus: sc.peakVus, arrival: sc.arrival, autoStop: plan.autoStop },
+      meta: { kind: plan.profile.kind, estDurationSec: sc.estDurationSec, peakVus: sc.peakVus, arrival: sc.arrival, autoStop: plan.autoStop, shards },
     },
   };
 }

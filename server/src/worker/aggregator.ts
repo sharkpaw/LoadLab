@@ -1,3 +1,11 @@
+export interface HistoJSON {
+  b: [number, number][];
+  n: number;
+  sum: number;
+  min: number;
+  max: number;
+}
+
 /** Log-bucketed histogram (~1% precision) for mergeable percentile computation. */
 export class Histo {
   private static readonly LN = Math.log(1.02);
@@ -30,6 +38,35 @@ export class Histo {
       }
     }
     return this.max;
+  }
+
+  merge(o: Histo): this {
+    for (const [k, c] of o.buckets) this.buckets.set(k, (this.buckets.get(k) ?? 0) + c);
+    this.n += o.n;
+    this.sum += o.sum;
+    if (o.min < this.min) this.min = o.min;
+    if (o.max > this.max) this.max = o.max;
+    return this;
+  }
+
+  toJSON(): HistoJSON {
+    return { b: [...this.buckets], n: this.n, sum: this.sum, min: this.n ? this.min : 0, max: this.max };
+  }
+
+  static from(j: HistoJSON): Histo {
+    const h = new Histo();
+    h.buckets = new Map(j.b);
+    h.n = j.n;
+    h.sum = j.sum;
+    h.min = j.n ? j.min : Infinity;
+    h.max = j.max;
+    return h;
+  }
+
+  static of(values: number[]): Histo {
+    const h = new Histo();
+    for (const v of values) h.add(v);
+    return h;
   }
 
   get avg(): number | null {
@@ -82,6 +119,61 @@ export interface Bucket {
   gen_cpu: number | null;
 }
 
+/**
+ * One shard's data for one second. Slices from several workers (a distributed run) are merged
+ * into a Bucket by Timeline. A local slice carries the raw durations (exact percentiles);
+ * one sent over Redis carries a histogram instead.
+ */
+export interface Slice {
+  t: number;
+  ts: number;
+  reqs: number;
+  fails: number;
+  iters: number;
+  bytesIn: number;
+  bytesOut: number;
+  dropped: number;
+  checksFail: number;
+  vus: number | null;
+  durations?: number[];
+  h?: HistoJSON;
+}
+
+/** Compact form of a slice for sending to the lead worker. */
+export function sliceToWire(s: Slice): Slice {
+  const { durations, ...rest } = s;
+  return durations ? { ...rest, h: Histo.of(durations).toJSON() } : rest;
+}
+
+export interface StepState {
+  flow: string;
+  step: string;
+  h: HistoJSON;
+  fails: number;
+}
+
+/** Everything a shard has counted; merged on the lead worker for the final summary. */
+export interface AggState {
+  total: HistoJSON;
+  reqs: number;
+  fails: number;
+  iters: number;
+  dropped: number;
+  bytesIn: number;
+  bytesOut: number;
+  maxVus: number;
+  steps: StepState[];
+  flows: { name: string; completed: number; aborted: number; h: HistoJSON }[];
+  statuses: [string, number][];
+  errorCodes: [string, number][];
+  checks: [string, { pass: number; fail: number }][];
+  abortSteps: [string, number][];
+}
+
+function addCounts(into: Map<string, number>, from: [string, number][]) {
+  for (const [k, v] of from) into.set(k, (into.get(k) ?? 0) + v);
+}
+
 interface RawBucket {
   durations: number[];
   reqs: number;
@@ -111,17 +203,14 @@ export interface WindowStats {
 }
 
 /**
- * Converts k6 JSON output (line by line) into per-second buckets and per-step summaries.
+ * Converts k6 JSON output (line by line) into per-second slices and per-step summaries.
  */
 export class Aggregator {
+  /** Second 0 of the run. Set up front on distributed runs so every worker counts from the same moment. */
   startMs: number | null = null;
   private raw = new Map<number, RawBucket>();
   private maxSec = -1;
   private nextEmit = 0;
-  private lastVus = 0;
-  emitted: Bucket[] = [];
-  /** Raw durations of the last few buckets (for window p95) */
-  private recentDurations: { t: number; d: number[] }[] = [];
 
   total = new Histo();
   totalReqs = 0;
@@ -137,9 +226,8 @@ export class Aggregator {
   errorCodes = new Map<string, number>();
   checks = new Map<string, { pass: number; fail: number }>();
   abortSteps = new Map<string, number>();
-  genCpu: number | null = null;
 
-  constructor(private onBucket: (b: Bucket) => void) {}
+  constructor(private onSlice: (s: Slice) => void) {}
 
   private bucket(sec: number): RawBucket {
     let b = this.raw.get(sec);
@@ -277,75 +365,105 @@ export class Aggregator {
     }
   }
 
-  /** Emits completed buckets, allowing for late data (lag seconds). */
+  /** Emits completed seconds, allowing for late data (lag seconds). */
   flush(final = false, lag = 2) {
     if (this.startMs === null) return;
     const upTo = final ? this.maxSec : this.maxSec - lag;
     for (let s = this.nextEmit; s <= upTo; s++) {
       const r = this.raw.get(s);
       this.raw.delete(s);
-      const durations = r ? r.durations.sort((a, b) => a - b) : [];
-      if (r?.vus !== null && r?.vus !== undefined) this.lastVus = r.vus;
-      const reqs = r?.reqs ?? 0;
-      let sum = 0;
-      for (const d of durations) sum += d;
-      const bk: Bucket = {
+      this.onSlice({
         t: s,
-        ts: new Date(this.startMs + s * 1000).toISOString(),
-        vus: this.lastVus,
-        rps: reqs,
+        ts: this.startMs + s * 1000,
+        reqs: r?.reqs ?? 0,
+        fails: r?.fails ?? 0,
         iters: r?.iters ?? 0,
-        err_rate: reqs ? (r!.fails / reqs) : 0,
-        avg: round(durations.length ? sum / durations.length : null),
-        p50: round(exactQuantile(durations, 0.5)),
-        p90: round(exactQuantile(durations, 0.9)),
-        p95: round(exactQuantile(durations, 0.95)),
-        p99: round(exactQuantile(durations, 0.99)),
-        max: round(durations.length ? durations[durations.length - 1] : null),
-        bytes_in: Math.round(r?.bytesIn ?? 0),
-        bytes_out: Math.round(r?.bytesOut ?? 0),
-        dropped: Math.round(r?.dropped ?? 0),
-        checks_fail: r?.checksFail ?? 0,
-        gen_cpu: this.genCpu,
-      };
-      this.recentDurations.push({ t: s, d: durations });
-      if (this.recentDurations.length > 130) this.recentDurations.shift();
-      this.emitted.push(bk);
-      this.onBucket(bk);
+        bytesIn: r?.bytesIn ?? 0,
+        bytesOut: r?.bytesOut ?? 0,
+        dropped: r?.dropped ?? 0,
+        checksFail: r?.checksFail ?? 0,
+        vus: r?.vus ?? null,
+        durations: r ? r.durations.sort((a, b) => a - b) : [],
+      });
     }
     this.nextEmit = Math.max(this.nextEmit, upTo + 1);
   }
 
-  /** Stats for the last `seconds`-second window (auto-stop / breakpoint). */
-  window(seconds: number): WindowStats | null {
-    const bs = this.emitted.slice(-seconds);
-    if (bs.length < seconds) return null;
-    const fromT = bs[0].t;
-    const all: number[] = [];
-    for (const r of this.recentDurations) if (r.t >= fromT) for (const d of r.d) all.push(d);
-    all.sort((a, b) => a - b);
-    const reqs = bs.reduce((a, b) => a + b.rps, 0);
-    const fails = bs.reduce((a, b) => a + b.rps * b.err_rate, 0);
+  stepsState(): StepState[] {
+    return [...this.steps.values()].map((s) => ({ flow: s.flow, step: s.step, h: s.histo.toJSON(), fails: s.fails }));
+  }
+
+  exportState(): AggState {
     return {
-      seconds,
-      rps: reqs / seconds,
-      iterRate: bs.reduce((a, b) => a + b.iters, 0) / seconds,
-      vus: bs[bs.length - 1].vus,
-      p95: exactQuantile(all, 0.95),
-      errRate: reqs ? fails / reqs : 0,
+      total: this.total.toJSON(),
+      reqs: this.totalReqs,
+      fails: this.totalFails,
+      iters: this.totalIters,
+      dropped: this.totalDropped,
+      bytesIn: this.bytesIn,
+      bytesOut: this.bytesOut,
+      maxVus: this.maxVus,
+      steps: this.stepsState(),
+      flows: [...this.flows.entries()].map(([name, f]) => ({ name, completed: f.completed, aborted: f.aborted, h: f.duration.toJSON() })),
+      statuses: [...this.statuses],
+      errorCodes: [...this.errorCodes],
+      checks: [...this.checks],
+      abortSteps: [...this.abortSteps],
     };
   }
 
-  stepsSnapshot() {
-    return [...this.steps.values()]
+  private mergeSteps(into: Map<string, StepAgg>, steps: StepState[]) {
+    for (const s of steps) {
+      const key = `${s.flow}\u001f${s.step}`;
+      const cur = into.get(key);
+      if (cur) {
+        cur.histo.merge(Histo.from(s.h));
+        cur.fails += s.fails;
+      } else into.set(key, { flow: s.flow, step: s.step, histo: Histo.from(s.h), fails: s.fails });
+    }
+  }
+
+  /** Adds another shard's totals (the lead worker merges every helper's state before the summary). */
+  mergeState(o: AggState) {
+    this.total.merge(Histo.from(o.total));
+    this.totalReqs += o.reqs;
+    this.totalFails += o.fails;
+    this.totalIters += o.iters;
+    this.totalDropped += o.dropped;
+    this.bytesIn += o.bytesIn;
+    this.bytesOut += o.bytesOut;
+    this.mergeSteps(this.steps, o.steps);
+    for (const f of o.flows) {
+      const cur = this.flow(f.name);
+      cur.completed += f.completed;
+      cur.aborted += f.aborted;
+      cur.duration.merge(Histo.from(f.h));
+    }
+    addCounts(this.statuses, o.statuses);
+    addCounts(this.errorCodes, o.errorCodes);
+    addCounts(this.abortSteps, o.abortSteps);
+    for (const [name, c] of o.checks) {
+      const cur = this.checks.get(name) ?? { pass: 0, fail: 0 };
+      this.checks.set(name, { pass: cur.pass + c.pass, fail: cur.fail + c.fail });
+    }
+  }
+
+  /** Per-step stats; `others` are live step states from helper workers. */
+  stepsSnapshot(others: StepState[][] = []) {
+    let steps = this.steps;
+    if (others.length) {
+      steps = new Map([...this.steps].map(([k, s]) => [k, { ...s, histo: new Histo().merge(s.histo) }]));
+      for (const o of others) this.mergeSteps(steps, o);
+    }
+    return [...steps.values()]
       .map((s) => ({ flow: s.flow, step: s.step, fails: s.fails, errRate: s.histo.n ? round(s.fails / s.histo.n, 4) : 0, ...s.histo.stats() }))
       .sort((a, b) => a.flow.localeCompare(b.flow));
   }
 
-  summary(durationSec: number) {
+  /** `peak` comes from the Timeline: per-second values summed across workers. */
+  summary(durationSec: number, peak: { rps: number; vus: number }) {
     const top = (m: Map<string, number>, n = 20) =>
       [...m.entries()].sort((a, b) => b[1] - a[1]).slice(0, n).map(([k, v]) => ({ key: k, count: v }));
-    const peak = this.emitted.reduce((a, b) => (b.rps > a ? b.rps : a), 0);
     return {
       durationSec,
       requests: this.totalReqs,
@@ -354,8 +472,8 @@ export class Aggregator {
       iterations: this.totalIters,
       droppedIterations: this.totalDropped,
       rpsAvg: durationSec ? round(this.totalReqs / durationSec) : null,
-      rpsPeak: peak,
-      maxVus: this.maxVus,
+      rpsPeak: peak.rps,
+      maxVus: Math.max(this.maxVus, peak.vus),
       bytesIn: this.bytesIn,
       bytesOut: this.bytesOut,
       latency: this.total.stats(),
@@ -366,5 +484,160 @@ export class Aggregator {
       abortedAt: top(this.abortSteps),
       checks: [...this.checks.entries()].map(([name, c]) => ({ name, ...c })),
     };
+  }
+}
+
+/**
+ * Merges per-second slices from one or more workers into Buckets (chart points), and answers the
+ * rolling-window questions auto-stop asks. With one worker the percentiles are exact; across
+ * workers they come from merged histograms (~1%).
+ */
+export class Timeline {
+  private pending = new Map<number, Map<number, Slice>>();
+  private reported: number[];
+  private finished: boolean[];
+  private lastVus: number[];
+  private nextEmit = 0;
+  private maxT = -1;
+  private t0: number | null = null;
+  /** Latest k6 CPU % per worker; the bucket shows the busiest one. */
+  cpu: (number | null)[];
+  emitted: Bucket[] = [];
+  private recent: { t: number; durations: number[] | null; h: Histo | null }[] = [];
+
+  constructor(
+    private shards: number,
+    private onBucket: (b: Bucket) => void,
+  ) {
+    this.reported = Array(shards).fill(-1);
+    this.finished = Array(shards).fill(false);
+    this.lastVus = Array(shards).fill(0);
+    this.cpu = Array(shards).fill(null);
+  }
+
+  add(shard: number, s: Slice) {
+    if (s.t < this.nextEmit) return; // too late: the second was already emitted (totals still include it)
+    let parts = this.pending.get(s.t);
+    if (!parts) {
+      parts = new Map();
+      this.pending.set(s.t, parts);
+    }
+    parts.set(shard, s);
+    if (this.t0 === null) this.t0 = s.ts - s.t * 1000;
+    if (s.t > this.reported[shard]) this.reported[shard] = s.t;
+    if (s.t > this.maxT) this.maxT = s.t;
+  }
+
+  /** A worker has sent everything (or is gone); seconds no longer wait for it. A lost worker's VUs stop counting. */
+  finish(shard: number, lost = false) {
+    this.finished[shard] = true;
+    if (lost) this.lastVus[shard] = 0;
+  }
+
+  /** Emits each second once every worker has reported it, or once it is `straggle` seconds behind. */
+  flush(final = false, straggle = 5) {
+    while (this.nextEmit <= this.maxT) {
+      const t = this.nextEmit;
+      const complete = this.reported.every((r, i) => r >= t || this.finished[i]);
+      if (!final && !complete && this.maxT - t < straggle) break;
+      this.emit(t);
+      this.nextEmit++;
+    }
+  }
+
+  private emit(t: number) {
+    const parts = [...(this.pending.get(t) ?? new Map<number, Slice>())];
+    this.pending.delete(t);
+    let reqs = 0;
+    let fails = 0;
+    let iters = 0;
+    let bytesIn = 0;
+    let bytesOut = 0;
+    let dropped = 0;
+    let checksFail = 0;
+    for (const [shard, p] of parts) {
+      if (p.vus !== null) this.lastVus[shard] = p.vus;
+      reqs += p.reqs;
+      fails += p.fails;
+      iters += p.iters;
+      bytesIn += p.bytesIn;
+      bytesOut += p.bytesOut;
+      dropped += p.dropped;
+      checksFail += p.checksFail;
+    }
+    let durations: number[] | null = null;
+    let h: Histo | null = null;
+    if (this.shards === 1) durations = parts[0]?.[1].durations ?? [];
+    else {
+      h = new Histo();
+      for (const [, p] of parts) h.merge(p.h ? Histo.from(p.h) : Histo.of(p.durations ?? []));
+    }
+    const q = (x: number) => round(durations ? exactQuantile(durations, x) : h!.quantile(x));
+    let avg: number | null = null;
+    if (durations?.length) avg = durations.reduce((a, b) => a + b, 0) / durations.length;
+    else if (h?.n) avg = h.avg;
+    const cpus = this.cpu.filter((c): c is number => c !== null);
+    const bk: Bucket = {
+      t,
+      ts: new Date((this.t0 ?? 0) + t * 1000).toISOString(),
+      vus: this.lastVus.reduce((a, b) => a + b, 0),
+      rps: reqs,
+      iters,
+      err_rate: reqs ? fails / reqs : 0,
+      avg: round(avg),
+      p50: q(0.5),
+      p90: q(0.9),
+      p95: q(0.95),
+      p99: q(0.99),
+      max: round(durations ? (durations.length ? durations[durations.length - 1] : null) : h!.n ? h!.max : null),
+      bytes_in: Math.round(bytesIn),
+      bytes_out: Math.round(bytesOut),
+      dropped: Math.round(dropped),
+      checks_fail: checksFail,
+      gen_cpu: cpus.length ? Math.max(...cpus) : null,
+    };
+    this.recent.push({ t, durations, h });
+    if (this.recent.length > 130) this.recent.shift();
+    this.emitted.push(bk);
+    this.onBucket(bk);
+  }
+
+  /** Stats for the last `seconds`-second window (auto-stop / breakpoint). */
+  window(seconds: number): WindowStats | null {
+    const bs = this.emitted.slice(-seconds);
+    if (bs.length < seconds) return null;
+    const fromT = bs[0].t;
+    const recent = this.recent.filter((r) => r.t >= fromT);
+    let p95: number | null;
+    if (this.shards === 1) {
+      const all: number[] = [];
+      for (const r of recent) for (const d of r.durations ?? []) all.push(d);
+      all.sort((a, b) => a - b);
+      p95 = exactQuantile(all, 0.95);
+    } else {
+      const h = new Histo();
+      for (const r of recent) if (r.h) h.merge(r.h);
+      p95 = h.quantile(0.95);
+    }
+    const reqs = bs.reduce((a, b) => a + b.rps, 0);
+    const fails = bs.reduce((a, b) => a + b.rps * b.err_rate, 0);
+    return {
+      seconds,
+      rps: reqs / seconds,
+      iterRate: bs.reduce((a, b) => a + b.iters, 0) / seconds,
+      vus: bs[bs.length - 1].vus,
+      p95,
+      errRate: reqs ? fails / reqs : 0,
+    };
+  }
+
+  get peak(): { rps: number; vus: number } {
+    let rps = 0;
+    let vus = 0;
+    for (const b of this.emitted) {
+      if (b.rps > rps) rps = b.rps;
+      if (b.vus > vus) vus = b.vus;
+    }
+    return { rps, vus };
   }
 }

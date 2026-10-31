@@ -475,7 +475,7 @@ export async function previewPlan(siteId: string, cfg: unknown) {
   const site = await siteRow(siteId);
   try {
     const { runner, plan } = await compileRun(site, cfg, loadWorkflow);
-    return { ok: true, errors: [], plan, meta: runner.meta, options: runner.options, flows: runner.flows.map((f) => ({ name: f.name, weight: f.weight, requests: countRequests(f.steps) })) };
+    return { ok: true, errors: [], plan, meta: runner.meta, workersOnline: await onlineWorkers(), options: runner.options, flows: runner.flows.map((f) => ({ name: f.name, weight: f.weight, requests: countRequests(f.steps) })) };
   } catch (e) {
     if (e instanceof CompileError) return { ok: false, errors: e.errors };
     throw e;
@@ -490,6 +490,11 @@ async function enqueueRun(opts: { site: SiteRow; planId: string | null; name: st
     if (e instanceof CompileError) throw new HttpError(400, 'Could not start test', e.errors);
     throw e;
   }
+  const shards = compiled.runner.meta.shards;
+  if (shards > 1) {
+    const online = await onlineWorkers();
+    if (shards > online) throw new HttpError(409, `This test needs ${shards} workers, but only ${online} are online`);
+  }
   const [r] = await db
     .insert(runs)
     .values({
@@ -501,6 +506,7 @@ async function enqueueRun(opts: { site: SiteRow; planId: string | null; name: st
       trigger: opts.trigger,
       config: compiled.runner,
       planSnapshot: compiled.plan,
+      shards,
     })
     .returning({ id: runs.id, name: runs.name, kind: runs.kind, status: runs.status, createdAt: runs.createdAt });
   await redis.lpush(keys.queueWake, r.id);
@@ -549,6 +555,7 @@ const runListColumns = {
   status: runs.status,
   trigger: runs.trigger,
   workerId: runs.workerId,
+  shards: runs.shards,
   thresholdsPassed: runs.thresholdsPassed,
   stopReason: runs.stopReason,
   error: runs.error,
@@ -730,6 +737,11 @@ export async function overview() {
     drafts,
     workers: nodes.filter((n) => n.role === 'worker'),
   };
+}
+
+/** Workers with a live heartbeat (what a distributed run can use). */
+async function onlineWorkers(): Promise<number> {
+  return (await listNodes()).filter((n) => n.role === 'worker' && n.online).length;
 }
 
 async function listNodes() {
@@ -930,6 +942,8 @@ export async function janitorTick() {
       .set({ status: 'failed', finishedAt: now(), error: 'Worker not responding (crashed or restarted)' })
       .where(and(eq(runs.id, o.id), inArray(runs.status, LIVE_RUN_STATUSES)));
     await redis.publish(keys.live(o.id), JSON.stringify({ type: 'status', data: { status: 'failed', done: true } }));
+    // helpers of a distributed run would otherwise keep sending load
+    await redis.publish(keys.control(o.id), 'kill');
   }
   // hourly retention policy
   if (Date.now() - lastRetention > 3600_000) {

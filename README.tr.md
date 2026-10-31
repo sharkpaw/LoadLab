@@ -59,6 +59,8 @@ Birden fazla workflow'u ağırlıklarla karıştırın ve bir profil seçin:
 
 Planlara geçti/kaldı eşikleri (p95, p99, hata oranı, kontrol başarısı), otomatik durdurma kuralları ve gece benchmark'ları için cron zamanlaması da tanımlanabilir.
 
+**Dağıtık koşular:** Tek bir worker'ın CPU'su yetmediğinde, planın gelişmiş ayarlarındaki *Worker'lar* alanıyla testi birden çok worker'a bölebilirsiniz. Her worker VU'ların ve hızın eşit bir payını çalıştırır (k6 execution segment), hepsi duraklatılmış hâlden aynı anda başlar ve lider worker sonuçları tek bir koşuda birleştirir: aynı canlı grafikler, adım tablosu ve özet, ayrıca worker bazında bir tablo. Dağıtık test, yeterince worker boşalana kadar kuyrukta bekler; test sırasında bir worker düşerse koşu durur ve o ana kadar ölçülenleri saklar.
+
 ### Koşular
 - Server-Sent Events ile canlı grafikler, adım bazında gecikme tablosu, durum kodları ve kullanıcıların hangi adımda takıldığı.
 - **Durdur** (kibar) ve **Zorla durdur**, kuyruktan iptal, tekrar çalıştırma.
@@ -159,7 +161,7 @@ Ne OAuth ne de header destekleyen istemciler `https://loadlab.ornek.com/mcp?toke
 ```
 
 - k6 her test için kod üretmez; workflow JSON'unu yorumlayan **tek bir genel script** çalıştırır (`server/k6/runner.js`).
-- Temiz ölçüm için her worker aynı anda tek test çalıştırır. Ölçeklemek için `WORKER_REPLICAS`'ı artırın.
+- Temiz ölçüm için her worker aynı anda tek test çalıştırır. Ölçeklemek için `WORKER_REPLICAS`'ı artırın: aynı anda daha çok test çalışır ya da tek bir test worker'lara bölünür (plandaki *Worker'lar* alanı). Aynı Postgres ve Redis'e erişebildiği sürece başka makinelerdeki worker'lar da katılabilir.
 - Worker k6'nın kendi CPU kullanımını izler; yük üreticisi doyduğunda ya da iterasyonlar düştüğünde uyarır.
 
 ## Güvenlik
@@ -199,7 +201,7 @@ Tüm değişkenler açılışta [t3-env](https://github.com/t3-oss/t3-env) ve zo
 | `PUBLIC_URL` | `SERVICE_URL_LOADLAB` | Panelin dış adresi (çerezler, köken denetimi, MCP bağlantıları) |
 | `TRUSTED_ORIGINS` | — | Ek panel adresleri (virgülle) |
 | `TRUST_PROXY_HOPS` | `1` | API'nin önündeki ters vekil sayısı (doğrudan açıksa `0`) |
-| `WORKER_REPLICAS` | `1` | Aynı anda çalışabilecek test sayısı |
+| `WORKER_REPLICAS` | `1` | Worker sayısı: aynı anda çalışabilecek test sayısı ve tek bir testin en fazla kaç worker'a bölünebileceği |
 | `MAX_VUS` / `MAX_RATE` / `MAX_DURATION_SEC` | 5000 / 20000 / 14400 | Güvenlik üst sınırları |
 | `MCP_ALLOW_RUN` | `false` | MCP istemcilerinin test başlatabilmesi |
 | `MCP_ALLOW_DEBUG` | `true` | MCP istemcilerinin 1 iterasyonluk deneme çalıştırabilmesi |
@@ -232,7 +234,7 @@ Proje düzeni ve kurallar için: [AGENTS.md](AGENTS.md).
 | ✅ | 2FA'lı Better Auth, şifre sıfırlama (SMTP veya günlük) ve yönetim komutları |
 | ✅ | İngilizce ve Türkçe arayüz |
 | ✅ | Coolify uyumlu compose, çok mimarili imajlar, uçtan uca testli CI |
-| ⬜ | Dağıtık koşular (tek testi birden çok worker'a yaymak) |
+| ✅ | Dağıtık koşular (tek testi birden çok worker'a yaymak) |
 | ⬜ | Ön yüz metrikleri için tarayıcı seviyesinde adımlar (k6 browser) |
 | ⬜ | Eşik aşımında bildirimler (Slack / e-posta / webhook) |
 | ⬜ | Daha fazla dil (katkılarınızı bekliyoruz) |
