@@ -63,31 +63,33 @@ export default function ComparePage() {
       </div>
 
       <Card title={t('Key metrics')} pad={false} className="mb-4">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-line text-left text-xs text-ink-3">
-              <th className="px-4 py-2 font-medium">{t('Metric')}</th>
-              <th className="px-4 py-2 text-right font-medium">A</th>
-              <th className="px-4 py-2 text-right font-medium">B</th>
-              <th className="px-4 py-2 text-right font-medium">{t('Change')}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {ROWS.map((r) => {
-              const d = data.deltaPct[r.key];
-              const good = d === null ? null : r.better === 'lower' ? d < -2 : d > 2;
-              const bad = d === null ? null : r.better === 'lower' ? d > 2 : d < -2;
-              return (
-                <tr key={r.key} className="border-b border-line/60">
-                  <td className="px-4 py-2 text-ink-2">{t(r.label)}</td>
-                  <td className="tabular px-4 py-2 text-right">{r.fmt(data.a.kpi[r.key])}</td>
-                  <td className="tabular px-4 py-2 text-right">{r.fmt(data.b.kpi[r.key])}</td>
-                  <td className={cx('tabular px-4 py-2 text-right', good && 'text-good', bad && 'text-bad', !good && !bad && 'text-ink-3')}>{d === null ? '—' : `${d > 0 ? '+' : ''}${d}%`}</td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-line text-left text-xs text-ink-3">
+                <th className="px-4 py-2 font-medium">{t('Metric')}</th>
+                <th className="px-4 py-2 text-right font-medium">A</th>
+                <th className="px-4 py-2 text-right font-medium">B</th>
+                <th className="px-4 py-2 text-right font-medium">{t('Change')}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {ROWS.map((r) => {
+                const d = data.deltaPct[r.key];
+                const good = d === null ? null : r.better === 'lower' ? d < -2 : d > 2;
+                const bad = d === null ? null : r.better === 'lower' ? d > 2 : d < -2;
+                return (
+                  <tr key={r.key} className="border-b border-line/60">
+                    <td className="px-4 py-2 text-ink-2">{t(r.label)}</td>
+                    <td className="tabular px-4 py-2 text-right">{r.fmt(data.a.kpi[r.key])}</td>
+                    <td className="tabular px-4 py-2 text-right">{r.fmt(data.b.kpi[r.key])}</td>
+                    <td className={cx('tabular px-4 py-2 text-right', good && 'text-good', bad && 'text-bad', !good && !bad && 'text-ink-3')}>{d === null ? '—' : `${d > 0 ? '+' : ''}${d}%`}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
       </Card>
 
       <div className="mb-4 grid gap-4 lg:grid-cols-2">
@@ -115,31 +117,33 @@ export default function ComparePage() {
 
       {stepRows.length > 0 && (
         <Card title={t('p95 per step')} pad={false}>
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-line text-left text-xs text-ink-3">
-                <th className="px-4 py-2 font-medium">{t('Step')}</th>
-                <th className="px-4 py-2 text-right font-medium">A p95</th>
-                <th className="px-4 py-2 text-right font-medium">B p95</th>
-                <th className="px-4 py-2 text-right font-medium">{t('Change')}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {stepRows.map(({ a: x, b: y }: any) => {
-                const d = y && x.p95 ? ((y.p95 - x.p95) / x.p95) * 100 : null;
-                return (
-                  <tr key={x.flow + x.step} className="border-b border-line/60">
-                    <td className="px-4 py-2">
-                      {x.step} <span className="text-xs text-ink-3">· {x.flow}</span>
-                    </td>
-                    <td className="tabular px-4 py-2 text-right">{fmtMs(x.p95)}</td>
-                    <td className="tabular px-4 py-2 text-right">{fmtMs(y?.p95)}</td>
-                    <td className={cx('tabular px-4 py-2 text-right', d !== null && d > 5 && 'text-bad', d !== null && d < -5 && 'text-good')}>{d === null ? '—' : `${d > 0 ? '+' : ''}${d.toFixed(1)}%`}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-line text-left text-xs text-ink-3">
+                  <th className="px-4 py-2 font-medium">{t('Step')}</th>
+                  <th className="px-4 py-2 text-right font-medium">A p95</th>
+                  <th className="px-4 py-2 text-right font-medium">B p95</th>
+                  <th className="px-4 py-2 text-right font-medium">{t('Change')}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {stepRows.map(({ a: x, b: y }: any) => {
+                  const d = y && x.p95 ? ((y.p95 - x.p95) / x.p95) * 100 : null;
+                  return (
+                    <tr key={x.flow + x.step} className="border-b border-line/60">
+                      <td className="px-4 py-2">
+                        {x.step} <span className="text-xs text-ink-3">· {x.flow}</span>
+                      </td>
+                      <td className="tabular px-4 py-2 text-right">{fmtMs(x.p95)}</td>
+                      <td className="tabular px-4 py-2 text-right">{fmtMs(y?.p95)}</td>
+                      <td className={cx('tabular px-4 py-2 text-right', d !== null && d > 5 && 'text-bad', d !== null && d < -5 && 'text-good')}>{d === null ? '—' : `${d > 0 ? '+' : ''}${d.toFixed(1)}%`}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         </Card>
       )}
     </>

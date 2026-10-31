@@ -483,28 +483,30 @@ function StepsTable({ steps }: { steps: any[] }) {
 
 function SimpleTable({ head, rows }: { head: string[]; rows: React.ReactNode[][] }) {
   return (
-    <table className="w-full text-sm">
-      <thead>
-        <tr className="border-b border-line text-left text-xs text-ink-3">
-          {head.map((h, i) => (
-            <th key={h} className={cx('px-4 py-2 font-medium', i > 0 && 'text-right')}>
-              {h}
-            </th>
-          ))}
-        </tr>
-      </thead>
-      <tbody>
-        {rows.map((r, i) => (
-          <tr key={i} className="border-b border-line/60">
-            {r.map((c, j) => (
-              <td key={j} className={cx('px-4 py-1.5', j > 0 ? 'tabular text-right text-ink-2' : 'break-all')}>
-                {c}
-              </td>
+    <div className="overflow-x-auto">
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="border-b border-line text-left text-xs text-ink-3">
+            {head.map((h, i) => (
+              <th key={h} className={cx('px-4 py-2 font-medium', i > 0 && 'text-right')}>
+                {h}
+              </th>
             ))}
           </tr>
-        ))}
-      </tbody>
-    </table>
+        </thead>
+        <tbody>
+          {rows.map((r, i) => (
+            <tr key={i} className="border-b border-line/60">
+              {r.map((c, j) => (
+                <td key={j} className={cx('px-4 py-1.5', j > 0 ? 'tabular text-right text-ink-2' : 'break-all')}>
+                  {c}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }
 

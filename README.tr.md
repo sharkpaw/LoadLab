@@ -118,13 +118,14 @@ Her sürümde çok mimarili hazır imaj `ghcr.io/sharkpaw/loadlab` adresine yay�
 
 ## Yapay zekâ ajanlarıyla kullanım (MCP)
 
-LoadLab açık [Model Context Protocol](https://modelcontextprotocol.io) standardını kullanır. Bu yüzden Streamable HTTP destekleyen her MCP istemcisiyle çalışır: Claude, Gemini CLI, ChatGPT, Cursor, VS Code, Windsurf ve diğerleri. İki giriş yönteminden birini seçin; **Ayarlar ve MCP** ikisinin de hazır kurulumunu gösterir.
+LoadLab açık [Model Context Protocol](https://modelcontextprotocol.io) standardını kullanır. Bu yüzden Streamable HTTP destekleyen her MCP istemcisiyle çalışır: Claude, Gemini CLI, ChatGPT, Codex, Cursor, VS Code, Windsurf ve diğerleri. İki giriş yönteminden birini seçin; **Ayarlar ve MCP** ikisinin de hazır kurulumunu gösterir.
 
 **OAuth (önerilen):** yalnızca sunucu adresini ekleyin. İstemci LoadLab'in OAuth 2.1 sunucusunu kendisi bulur, giriş sayfasını tarayıcınızda açar ve onay ekranında izin verirsiniz. Arkada dinamik istemci kaydı ve PKCE çalışır; token'lar sizin `/mcp` kaynağınıza bağlıdır.
 
 ```bash
 claude mcp add --transport http loadlab https://loadlab.ornek.com/mcp
 gemini mcp add --transport http loadlab https://loadlab.ornek.com/mcp
+codex mcp add loadlab --url https://loadlab.ornek.com/mcp
 ```
 
 ChatGPT ya da Claude.ai bağlayıcılarında sunucu adresi olarak `https://loadlab.ornek.com/mcp` yapıştırmanız yeterli.

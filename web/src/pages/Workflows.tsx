@@ -58,46 +58,48 @@ export default function WorkflowsPage() {
             {t('Start from a template, import a HAR file, or ask an AI agent over MCP to “draft a checkout flow for my site”.')}
           </Empty>
         ) : (
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-line text-left text-xs text-ink-3">
-                <th className="px-4 py-2 font-medium">{t('Name')}</th>
-                <th className="px-4 py-2 font-medium">{t('Site')}</th>
-                <th className="px-4 py-2 font-medium">{t('Status')}</th>
-                <th className="px-4 py-2 text-right font-medium">{t('Requests')}</th>
-                <th className="px-4 py-2 font-medium">{t('Version')}</th>
-                <th className="px-4 py-2 font-medium">{t('Updated')}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {data.map((w) => (
-                <tr key={w.id} className="cursor-pointer border-b border-line/60 hover:bg-surface-2" onClick={() => nav(`/workflows/${w.id}`)}>
-                  <td className="px-4 py-2.5">
-                    <Link to={`/workflows/${w.id}`} className="font-medium hover:underline" onClick={(e) => e.stopPropagation()}>
-                      {w.name}
-                    </Link>
-                    {w.description && <div className="truncate text-xs text-ink-3">{w.description}</div>}
-                  </td>
-                  <td className="px-4 py-2.5 text-ink-2">
-                    {w.siteName ?? (
-                      <span className="inline-flex items-center gap-1 text-[#e381a8]">
-                        <Puzzle className="size-3.5" /> {t('Shared module')}
-                      </span>
-                    )}
-                  </td>
-                  <td className="px-4 py-2.5">
-                    <div className="flex gap-1">
-                      <StatusBadge status={w.status} />
-                      {w.source !== 'panel' && <Badge tone="accent">{sourceLabel(w.source)}</Badge>}
-                    </div>
-                  </td>
-                  <td className="tabular px-4 py-2.5 text-right text-ink-2">{countSteps(w.definition?.steps)}</td>
-                  <td className="px-4 py-2.5 font-mono text-xs text-ink-3">v{w.version}</td>
-                  <td className="px-4 py-2.5 text-xs text-ink-3">{fmtAgo(w.updatedAt)}</td>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-line text-left text-xs text-ink-3">
+                  <th className="px-4 py-2 font-medium">{t('Name')}</th>
+                  <th className="px-4 py-2 font-medium">{t('Site')}</th>
+                  <th className="px-4 py-2 font-medium">{t('Status')}</th>
+                  <th className="px-4 py-2 text-right font-medium">{t('Requests')}</th>
+                  <th className="px-4 py-2 font-medium">{t('Version')}</th>
+                  <th className="px-4 py-2 font-medium">{t('Updated')}</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {data.map((w) => (
+                  <tr key={w.id} className="cursor-pointer border-b border-line/60 hover:bg-surface-2" onClick={() => nav(`/workflows/${w.id}`)}>
+                    <td className="px-4 py-2.5">
+                      <Link to={`/workflows/${w.id}`} className="font-medium hover:underline" onClick={(e) => e.stopPropagation()}>
+                        {w.name}
+                      </Link>
+                      {w.description && <div className="truncate text-xs text-ink-3">{w.description}</div>}
+                    </td>
+                    <td className="px-4 py-2.5 text-ink-2">
+                      {w.siteName ?? (
+                        <span className="inline-flex items-center gap-1 text-[#e381a8]">
+                          <Puzzle className="size-3.5" /> {t('Shared module')}
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-4 py-2.5">
+                      <div className="flex gap-1">
+                        <StatusBadge status={w.status} />
+                        {w.source !== 'panel' && <Badge tone="accent">{sourceLabel(w.source)}</Badge>}
+                      </div>
+                    </td>
+                    <td className="tabular px-4 py-2.5 text-right text-ink-2">{countSteps(w.definition?.steps)}</td>
+                    <td className="px-4 py-2.5 font-mono text-xs text-ink-3">v{w.version}</td>
+                    <td className="px-4 py-2.5 text-xs text-ink-3">{fmtAgo(w.updatedAt)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </Card>
       <HarImport open={harOpen} onClose={() => setHarOpen(false)} sites={sites.data ?? []} />

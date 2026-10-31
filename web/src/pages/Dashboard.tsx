@@ -25,7 +25,7 @@ export default function DashboardPage() {
       </div>
 
       <div className="grid gap-4 xl:grid-cols-3">
-        <div className="space-y-4 xl:col-span-2">
+        <div className="min-w-0 space-y-4 xl:col-span-2">
           <Card title={<span className="inline-flex items-center gap-2"><Activity className="size-4 text-accent" /> {t('Running / queued tests')}</span>} pad={false}>
             {data.active.length ? <RunTable runs={data.active} onChange={reload} compact /> : <Empty title={t('No tests are running')}>{t('Open a test plan and press “Start”.')}</Empty>}
           </Card>
@@ -34,7 +34,7 @@ export default function DashboardPage() {
           </Card>
         </div>
 
-        <div className="space-y-4">
+        <div className="min-w-0 space-y-4">
           <Card title={<span className="inline-flex items-center gap-2"><Bot className="size-4 text-accent" /> {t('Drafts awaiting review')}</span>} pad={false}>
             {data.drafts.length ? (
               <ul className="divide-y divide-line/60">

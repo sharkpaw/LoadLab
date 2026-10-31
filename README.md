@@ -118,13 +118,14 @@ Prebuilt multi-arch images are published to `ghcr.io/sharkpaw/loadlab` for every
 
 ## Use it with AI agents (MCP)
 
-LoadLab speaks the open [Model Context Protocol](https://modelcontextprotocol.io), so it works with any MCP client that supports Streamable HTTP: Claude, Gemini CLI, ChatGPT, Cursor, VS Code, Windsurf and others. Pick one of two ways to sign in. **Settings & MCP** shows copy-ready setup for both.
+LoadLab speaks the open [Model Context Protocol](https://modelcontextprotocol.io), so it works with any MCP client that supports Streamable HTTP: Claude, Gemini CLI, ChatGPT, Codex, Cursor, VS Code, Windsurf and others. Pick one of two ways to sign in. **Settings & MCP** shows copy-ready setup for both.
 
 **OAuth (recommended):** add just the server URL. The client discovers LoadLab's OAuth 2.1 server, opens the sign-in page in your browser, and you approve it on a consent screen. Behind this are dynamic client registration and PKCE, and tokens are bound to your `/mcp` resource.
 
 ```bash
 claude mcp add --transport http loadlab https://loadlab.example.com/mcp
 gemini mcp add --transport http loadlab https://loadlab.example.com/mcp
+codex mcp add loadlab --url https://loadlab.example.com/mcp
 ```
 
 For ChatGPT or Claude.ai connectors, paste `https://loadlab.example.com/mcp` as the server URL.

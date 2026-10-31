@@ -650,6 +650,8 @@ export const tr: Record<string, string> = {
   'Authentication method': 'Kimlik doğrulama yöntemi',
   'OAuth is off: it needs an HTTPS PUBLIC_URL (or localhost) and MCP_OAUTH=true.': 'OAuth kapalı: HTTPS bir PUBLIC_URL (ya da localhost) ve MCP_OAUTH=true gerekir.',
   'Paste this URL into clients that only ask for a server address (e.g. ChatGPT or Claude.ai connectors); they start the sign-in themselves.': 'Yalnızca sunucu adresi isteyen istemcilere (örn. ChatGPT ya da Claude.ai bağlayıcıları) bu adresi yapıştırın; girişi kendileri başlatır.',
+  'Codex reads the key from LOADLAB_MCP_TOKEN when it starts. Add the export line to your shell profile.': 'Codex anahtarı açılışta LOADLAB_MCP_TOKEN değişkeninden okur. export satırını kabuk profilinize ekleyin.',
+  'Codex detects OAuth and opens LoadLab in your browser to sign in. To sign in again later, run “codex mcp login loadlab”.': 'Codex OAuth desteğini algılar ve giriş için LoadLab’i tarayıcınızda açar. Daha sonra yeniden giriş yapmak için “codex mcp login loadlab” çalıştırın.',
   'An application': 'Bir uygulama',
   'This authorization request is incomplete. Start the connection again from your AI client.': 'Bu yetkilendirme isteği eksik. Bağlantıyı yapay zekâ istemcinizden yeniden başlatın.',
   'Your session expired. Sign in and start the connection again from your AI client.': 'Oturumunuzun süresi doldu. Giriş yapıp bağlantıyı yapay zekâ istemcinizden yeniden başlatın.',

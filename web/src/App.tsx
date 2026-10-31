@@ -46,7 +46,7 @@ function Shell({ me, onLogout, onRefresh }: { me: Me; onLogout: () => void; onRe
   const nav = useNavigate();
   return (
     <div className="flex min-h-screen">
-      <aside className={cx('fixed inset-y-0 left-0 z-40 flex w-60 shrink-0 flex-col border-r border-line bg-surface transition-transform md:sticky md:top-0 md:h-dvh md:self-start md:translate-x-0', open ? 'translate-x-0' : '-translate-x-full')}>
+      <aside className={cx('fixed inset-y-0 left-0 z-40 flex w-60 flex-col border-r border-line bg-surface transition-transform md:translate-x-0', open ? 'translate-x-0' : '-translate-x-full')}>
         <div className="flex h-14 items-center gap-2 border-b border-line px-4">
           <Logo className="size-8" />
           <div>
@@ -88,7 +88,7 @@ function Shell({ me, onLogout, onRefresh }: { me: Me; onLogout: () => void; onRe
         </div>
       </aside>
       {open && <div className="fixed inset-0 z-30 bg-black/50 md:hidden" onClick={() => setOpen(false)} />}
-      <main className="min-w-0 flex-1">
+      <main className="min-w-0 flex-1 md:pl-60">
         <div className="flex h-14 items-center border-b border-line px-4 md:hidden">
           <button onClick={() => setOpen(true)} aria-label={t('Menu')}>
             <Menu className="size-5" />

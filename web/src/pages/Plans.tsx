@@ -39,60 +39,62 @@ export default function PlansPage() {
             {t('Create a plan or have one drafted over MCP.')}
           </Empty>
         ) : (
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-line text-left text-xs text-ink-3">
-                <th className="px-4 py-2 font-medium">{t('Plan')}</th>
-                <th className="px-4 py-2 font-medium">{t('Site')}</th>
-                <th className="px-4 py-2 font-medium">{t('Profile')}</th>
-                <th className="px-4 py-2 font-medium">{t('Last run')}</th>
-                <th className="px-4 py-2" />
-              </tr>
-            </thead>
-            <tbody>
-              {data.map((p) => (
-                <tr key={p.id} className="cursor-pointer border-b border-line/60 hover:bg-surface-2" onClick={() => nav(`/plans/${p.id}`)}>
-                  <td className="px-4 py-2.5">
-                    <div className="flex items-center gap-1.5">
-                      <Link to={`/plans/${p.id}`} className="font-medium hover:underline" onClick={(e) => e.stopPropagation()}>
-                        {p.name}
-                      </Link>
-                      <StatusBadge status={p.status} />
-                      {p.source !== 'panel' && <Badge tone="accent">{sourceLabel(p.source)}</Badge>}
-                      {p.schedule && (
-                        <Badge>
-                          <CalendarClock className="size-3" /> {p.schedule}
-                        </Badge>
-                      )}
-                    </div>
-                    {p.notes && <div className="truncate text-xs text-ink-3">{p.notes}</div>}
-                  </td>
-                  <td className="px-4 py-2.5 text-ink-2">{p.siteName}</td>
-                  <td className="px-4 py-2.5 text-ink-2">
-                    {profileLabel(p.config.profile.kind)}
-                    <span className="ml-1 text-xs text-ink-3">· {t('{n} flows', { n: p.config.flows.length })}</span>
-                  </td>
-                  <td className="px-4 py-2.5 text-xs">
-                    {p.lastRun ? (
-                      <div className="flex items-center gap-2">
-                        <StatusBadge status={p.lastRun.status} />
-                        <span className="tabular text-ink-2">p95 {fmtMs(p.lastRun.p95)}</span>
-                        <span className="tabular text-ink-3">{t('errors {v}', { v: fmtPct(p.lastRun.errorRate) })}</span>
-                        <span className="text-ink-3">{fmtAgo(p.lastRun.createdAt)}</span>
-                      </div>
-                    ) : (
-                      <span className="text-ink-3">—</span>
-                    )}
-                  </td>
-                  <td className="px-4 py-2.5 text-right" onClick={(e) => e.stopPropagation()}>
-                    <Button size="sm" variant="primary" icon={<Play className="size-3" />} onClick={() => start(p.id)}>
-                      {t('Start')}
-                    </Button>
-                  </td>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-line text-left text-xs text-ink-3">
+                  <th className="px-4 py-2 font-medium">{t('Plan')}</th>
+                  <th className="px-4 py-2 font-medium">{t('Site')}</th>
+                  <th className="px-4 py-2 font-medium">{t('Profile')}</th>
+                  <th className="px-4 py-2 font-medium">{t('Last run')}</th>
+                  <th className="px-4 py-2" />
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {data.map((p) => (
+                  <tr key={p.id} className="cursor-pointer border-b border-line/60 hover:bg-surface-2" onClick={() => nav(`/plans/${p.id}`)}>
+                    <td className="px-4 py-2.5">
+                      <div className="flex items-center gap-1.5">
+                        <Link to={`/plans/${p.id}`} className="font-medium hover:underline" onClick={(e) => e.stopPropagation()}>
+                          {p.name}
+                        </Link>
+                        <StatusBadge status={p.status} />
+                        {p.source !== 'panel' && <Badge tone="accent">{sourceLabel(p.source)}</Badge>}
+                        {p.schedule && (
+                          <Badge>
+                            <CalendarClock className="size-3" /> {p.schedule}
+                          </Badge>
+                        )}
+                      </div>
+                      {p.notes && <div className="truncate text-xs text-ink-3">{p.notes}</div>}
+                    </td>
+                    <td className="px-4 py-2.5 text-ink-2">{p.siteName}</td>
+                    <td className="px-4 py-2.5 text-ink-2">
+                      {profileLabel(p.config.profile.kind)}
+                      <span className="ml-1 text-xs text-ink-3">· {t('{n} flows', { n: p.config.flows.length })}</span>
+                    </td>
+                    <td className="px-4 py-2.5 text-xs">
+                      {p.lastRun ? (
+                        <div className="flex items-center gap-2">
+                          <StatusBadge status={p.lastRun.status} />
+                          <span className="tabular text-ink-2">p95 {fmtMs(p.lastRun.p95)}</span>
+                          <span className="tabular text-ink-3">{t('errors {v}', { v: fmtPct(p.lastRun.errorRate) })}</span>
+                          <span className="text-ink-3">{fmtAgo(p.lastRun.createdAt)}</span>
+                        </div>
+                      ) : (
+                        <span className="text-ink-3">—</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-2.5 text-right" onClick={(e) => e.stopPropagation()}>
+                      <Button size="sm" variant="primary" icon={<Play className="size-3" />} onClick={() => start(p.id)}>
+                        {t('Start')}
+                      </Button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </Card>
     </>

@@ -29,6 +29,7 @@ function CodeBlock({ code }: { code: string }) {
 const CLIENTS = [
   { key: 'claude', label: 'Claude Code' },
   { key: 'gemini', label: 'Gemini CLI' },
+  { key: 'codex', label: 'Codex CLI' },
   { key: 'json', label: msg('Other clients (JSON)') },
   { key: 'url', label: msg('URL only') },
 ] as const;
@@ -44,6 +45,11 @@ function ClientSetup({ mcpUrl, tok, oauth }: { mcpUrl: string; tok: string; oaut
   const code = {
     claude: `claude mcp add --transport http loadlab ${mcpUrl}${header}`,
     gemini: `gemini mcp add --transport http loadlab ${mcpUrl}${header}`,
+    // Codex reads a bearer token only from an environment variable; without one it starts the OAuth sign-in itself.
+    codex:
+      method === 'key'
+        ? `export LOADLAB_MCP_TOKEN=${tok}\ncodex mcp add loadlab --url ${mcpUrl} --bearer-token-env-var LOADLAB_MCP_TOKEN`
+        : `codex mcp add loadlab --url ${mcpUrl}`,
     json: JSON.stringify({ mcpServers: { loadlab: entry } }, null, 2),
     url: method === 'key' ? `${mcpUrl}?token=${tok}` : mcpUrl,
   }[client];
@@ -85,6 +91,8 @@ function ClientSetup({ mcpUrl, tok, oauth }: { mcpUrl: string; tok: string; oaut
           ))}
         </div>
         <CodeBlock code={code} />
+        {client === 'codex' && method === 'key' && <p className="mt-1.5 text-xs text-ink-3">{t('Codex reads the key from LOADLAB_MCP_TOKEN when it starts. Add the export line to your shell profile.')}</p>}
+        {client === 'codex' && method === 'oauth' && <p className="mt-1.5 text-xs text-ink-3">{t('Codex detects OAuth and opens LoadLab in your browser to sign in. To sign in again later, run “codex mcp login loadlab”.')}</p>}
         {client === 'json' && <p className="mt-1.5 text-xs text-ink-3">{t('For Cursor, VS Code, Windsurf and most other clients. Some use “serverUrl” or “httpUrl” instead of “url”.')}</p>}
         {client === 'url' && method === 'key' && <p className="mt-1.5 text-xs text-warn">{t('For clients that cannot send headers (e.g. ChatGPT connectors). The key is part of the URL, so keep it private.')}</p>}
         {client === 'url' && method === 'oauth' && <p className="mt-1.5 text-xs text-ink-3">{t('Paste this URL into clients that only ask for a server address (e.g. ChatGPT or Claude.ai connectors); they start the sign-in themselves.')}</p>}

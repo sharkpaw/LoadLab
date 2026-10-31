@@ -142,17 +142,19 @@ export default function SystemPage() {
           <div className="border-b border-line px-4 py-2 text-xs text-ink-3">
             {pg.version} · {t('{n} connections', { n: pg.connections })}
           </div>
-          <table className="w-full text-sm">
-            <tbody>
-              {pg.tables.map((tb: any) => (
-                <tr key={tb.name} className="border-b border-line/60">
-                  <td className="px-4 py-1.5 font-mono text-xs">{tb.name}</td>
-                  <td className="tabular px-4 py-1.5 text-right text-xs text-ink-3">{t('~{n} rows', { n: fmtNum(tb.rows) })}</td>
-                  <td className="tabular px-4 py-1.5 text-right">{fmtBytes(tb.bytes)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <tbody>
+                {pg.tables.map((tb: any) => (
+                  <tr key={tb.name} className="border-b border-line/60">
+                    <td className="px-4 py-1.5 font-mono text-xs">{tb.name}</td>
+                    <td className="tabular px-4 py-1.5 text-right text-xs text-ink-3">{t('~{n} rows', { n: fmtNum(tb.rows) })}</td>
+                    <td className="tabular px-4 py-1.5 text-right">{fmtBytes(tb.bytes)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
           <div className="px-4 py-2 text-xs text-ink-3">
             Redis {rd.version} · {t('{n} clients', { n: rd.connectedClients })} · {t('{n} ops/s', { n: rd.opsPerSec })} · {rd.maxMemoryBytes ? t('limit {v}', { v: fmtBytes(rd.maxMemoryBytes) }) : t('no memory limit')}
           </div>
