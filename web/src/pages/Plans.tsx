@@ -75,7 +75,7 @@ export default function PlansPage() {
                           </Badge>
                         )}
                       </div>
-                      {p.notes && <div className="truncate text-xs text-ink-3" title={p.notes}>{p.notes}</div>}
+                      {p.notes && <div className="line-clamp-2 text-xs break-words text-ink-3" title={p.notes}>{p.notes}</div>}
                     </td>
                     <td className="px-4 py-2.5 whitespace-nowrap text-ink-2">{p.siteName}</td>
                     <td className="px-4 py-2.5 whitespace-nowrap text-ink-2">

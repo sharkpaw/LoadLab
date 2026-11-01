@@ -77,7 +77,7 @@ export default function WorkflowsPage() {
                       <Link to={`/workflows/${w.id}`} className="font-medium hover:underline" onClick={(e) => e.stopPropagation()}>
                         {w.name}
                       </Link>
-                      {w.description && <div className="truncate text-xs text-ink-3">{w.description}</div>}
+                      {w.description && <div className="line-clamp-2 text-xs break-words text-ink-3" title={w.description}>{w.description}</div>}
                     </td>
                     <td className="px-4 py-2.5 text-ink-2">
                       {w.siteName ?? (
