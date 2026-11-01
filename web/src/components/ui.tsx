@@ -68,8 +68,10 @@ export function Badge({ children, tone = 'neutral', className }: { children: Rea
   return <span className={cx('inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] font-medium whitespace-nowrap', t, className)}>{children}</span>;
 }
 
-export function StatusBadge({ status }: { status: string }) {
-  const map: Record<string, { tone: 'neutral' | 'accent' | 'good' | 'warn' | 'bad'; icon: ReactNode }> = {
+type Tone = 'neutral' | 'accent' | 'good' | 'warn' | 'bad';
+
+function statusStyle(status: string): { tone: Tone; icon: ReactNode } {
+  const map: Record<string, { tone: Tone; icon: ReactNode }> = {
     queued: { tone: 'neutral', icon: <CircleDashed className="size-3" /> },
     starting: { tone: 'accent', icon: <Loader2 className="size-3 animate-spin" /> },
     running: { tone: 'accent', icon: <Loader2 className="size-3 animate-spin" /> },
@@ -83,12 +85,27 @@ export function StatusBadge({ status }: { status: string }) {
     active: { tone: 'good', icon: null },
     archived: { tone: 'neutral', icon: null },
   };
-  const m = map[status] ?? { tone: 'neutral' as const, icon: null };
+  return map[status] ?? { tone: 'neutral', icon: null };
+}
+
+export function StatusBadge({ status }: { status: string }) {
+  const m = statusStyle(status);
   return (
     <Badge tone={m.tone}>
       {m.icon}
       {statusLabel(status)}
     </Badge>
+  );
+}
+
+/** The status icon alone, colored by tone; the label is the tooltip (for dense rows). */
+export function StatusIcon({ status }: { status: string }) {
+  const m = statusStyle(status);
+  const color = { neutral: 'text-ink-3', accent: 'text-tint-blue', good: 'text-good', warn: 'text-warn', bad: 'text-bad' }[m.tone];
+  return (
+    <span className={cx('inline-flex [&>svg]:size-3.5', color)} title={statusLabel(status)} aria-label={statusLabel(status)}>
+      {m.icon}
+    </span>
   );
 }
 
