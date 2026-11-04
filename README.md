@@ -44,6 +44,7 @@ k6 is a great engine, but a script per test and a terminal full of numbers don't
 - **Templates** such as `{{productId}}`, `{{data.users.email}}` (per-user datasets), `{{$randomInt 1 10}}`, `{{$uuid}}` and `{{$randomItem list}}`.
 - **Debug run:** 1 user, 1 iteration, with status, timing, extracted variables and a response preview for every step.
 - **HAR import:** record yourself in the browser and get a draft workflow, with pauses turned into think time.
+- **Browser workflows:** switch a workflow to *Browser (Chromium)* and script a real page with `goto`, `click`, `fill`, `select`, `press`, `waitFor`, `expect` and `read` steps. A plan can mix them with HTTP workflows: the HTTP flows make the load while a few browser users (*Browser VUs*) measure what visitors see. Requests to hosts outside the site's allowlist (analytics, ad scripts) are blocked and listed in the run's warnings. Needs a worker with Chromium (`BROWSER_WORKER_REPLICAS`).
 - Version history, JSON view, built-in DSL guide and a page inspector that lists a page's links and forms.
 
 ### Test plans and profiles
@@ -202,6 +203,8 @@ All variables are validated at startup with [t3-env](https://github.com/t3-oss/t
 | `TRUSTED_ORIGINS` | — | Extra dashboard origins, comma-separated |
 | `TRUST_PROXY_HOPS` | `1` | Reverse proxies in front of the API (`0` if exposed directly) |
 | `WORKER_REPLICAS` | `1` | Number of workers: tests that can run in parallel, and the most a single test can be split across |
+| `BROWSER_WORKER_REPLICAS` | `0` | Workers with Chromium for browser workflows (`worker-browser` service; the image is about 1 GB larger, each browser VU needs about half a CPU core and 200 MB) |
+| `MAX_BROWSER_VUS` | `5` | Most browser VUs a test may use |
 | `MAX_VUS` / `MAX_RATE` / `MAX_DURATION_SEC` | 5000 / 20000 / 14400 | Safety caps |
 | `MCP_ALLOW_RUN` | `false` | Allow MCP clients to start tests |
 | `MCP_ALLOW_DEBUG` | `true` | Allow MCP clients to start 1-iteration debug runs |

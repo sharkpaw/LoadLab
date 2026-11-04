@@ -475,7 +475,7 @@ export async function previewPlan(siteId: string, cfg: unknown) {
   const site = await siteRow(siteId);
   try {
     const { runner, plan } = await compileRun(site, cfg, loadWorkflow);
-    return { ok: true, errors: [], plan, meta: runner.meta, workersOnline: await onlineWorkers(), options: runner.options, flows: runner.flows.map((f) => ({ name: f.name, weight: f.weight, requests: countRequests(f.steps) })) };
+    return { ok: true, errors: [], plan, meta: runner.meta, workersOnline: await onlineWorkers(), browserWorkersOnline: await onlineWorkers(true), options: runner.options, flows: runner.flows.map((f) => ({ name: f.name, engine: f.engine, weight: f.weight, requests: countRequests(f.steps) })) };
   } catch (e) {
     if (e instanceof CompileError) return { ok: false, errors: e.errors };
     throw e;
@@ -495,6 +495,12 @@ async function enqueueRun(opts: { site: SiteRow; planId: string | null; name: st
     const online = await onlineWorkers();
     if (shards > online) throw new HttpError(409, `This test needs ${shards} workers, but only ${online} are online`);
   }
+  const browser = compiled.runner.meta.browserVus > 0;
+  if (browser) {
+    const online = await onlineWorkers(true);
+    if (online === 0) throw new HttpError(409, 'This test runs browser workflows, but no worker with a browser (Chromium) is online');
+    if (shards > online) throw new HttpError(409, `This test needs ${shards} workers with a browser, but only ${online} are online`);
+  }
   const [r] = await db
     .insert(runs)
     .values({
@@ -507,6 +513,7 @@ async function enqueueRun(opts: { site: SiteRow; planId: string | null; name: st
       config: compiled.runner,
       planSnapshot: compiled.plan,
       shards,
+      browser,
     })
     .returning({ id: runs.id, name: runs.name, kind: runs.kind, status: runs.status, createdAt: runs.createdAt });
   await redis.lpush(keys.queueWake, r.id);
@@ -740,8 +747,8 @@ export async function overview() {
 }
 
 /** Workers with a live heartbeat (what a distributed run can use). */
-async function onlineWorkers(): Promise<number> {
-  return (await listNodes()).filter((n) => n.role === 'worker' && n.online).length;
+async function onlineWorkers(browserOnly = false): Promise<number> {
+  return (await listNodes()).filter((n) => n.role === 'worker' && n.online && (!browserOnly || n.browser)).length;
 }
 
 async function listNodes() {

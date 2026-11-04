@@ -76,6 +76,7 @@ export const SERVER_MESSAGES = [
   msg('Worker not responding (crashed or restarted)'),
   msg('k6 exited before the test started'),
   msg('could not resume the paused k6 process'),
+  msg('This test runs browser workflows, but no worker with a browser (Chromium) is online'),
 ];
 
 /**
@@ -101,6 +102,8 @@ export function tServer(s: string | null | undefined): string {
   if ((m = /^Worker (\S+) sent no results/.exec(s))) return t('Worker {worker} sent no results; its share of the load is missing from the summary', { worker: m[1] });
   if ((m = /^Only (\d+) of (\d+) workers were free within 60 s$/.exec(s))) return t('Only {a} of {b} workers were free within 60 s', { a: m[1], b: m[2] });
   if ((m = /^Workers were not ready within 5 minutes \((\d+) of (\d+)\)$/.exec(s))) return t('Workers were not ready within 5 minutes ({a} of {b})', { a: m[1], b: m[2] });
+  if ((m = /^This test needs (\d+) workers with a browser, but only (\d+) are online$/.exec(s))) return t('This test needs {n} workers with a browser, but only {online} are online', { n: m[1], online: m[2] });
+  if ((m = /^Blocked requests to hosts outside the allowed list: (.*)\. Add a host/.exec(s))) return t('Blocked requests to hosts outside the allowed list: {list}. Add a host to the site’s allowed hosts if it belongs to the test.', { list: m[1] });
   if ((m = /^This test needs (\d+) workers, but only (\d+) are online$/.exec(s))) return t('This test needs {n} workers, but only {online} are online', { n: m[1], online: m[2] });
   return s;
 }

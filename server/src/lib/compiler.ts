@@ -1,6 +1,8 @@
 import { config } from './config.js';
 import {
+  BROWSER_STEP_TYPES,
   formatZodError,
+  HTTP_STEP_TYPES,
   PlanConfigSchema,
   WorkflowDefinitionSchema,
   type PlanConfig,
@@ -91,7 +93,7 @@ export async function inlineIncludes(steps: Step[], load: WorkflowLoader, stack:
 export function checkStaticHosts(steps: Step[], allowed: string[], errors: string[], prefix = ''): void {
   steps.forEach((s, i) => {
     const where = `${prefix}steps[${i}]${'name' in s && s.name ? ` (${s.name})` : ''}`;
-    if (s.type === 'request' || s.type === 'page') {
+    if (s.type === 'request' || s.type === 'page' || s.type === 'goto') {
       const host = hostOf(s.url);
       if (host && !host.includes('{{') && !hostAllowed(host, allowed)) {
         errors.push(`${where}: ${host} is not among this site's allowed hosts (${allowed.join(', ')})`);
@@ -105,10 +107,22 @@ export function checkStaticHosts(steps: Step[], allowed: string[], errors: strin
   });
 }
 
+export type Engine = 'http' | 'browser';
+
+/** HTTP steps only belong in http workflows and browser steps only in browser ones (checked after includes are inlined). */
+export function checkEngine(steps: Step[], engine: Engine, errors: string[], prefix = ''): void {
+  const foreign: readonly string[] = engine === 'browser' ? HTTP_STEP_TYPES : BROWSER_STEP_TYPES;
+  steps.forEach((s, i) => {
+    const where = `${prefix}steps[${i}]${'name' in s && s.name ? ` (${s.name})` : ''}`;
+    if (foreign.includes(s.type)) errors.push(`${where}: "${s.type}" steps are not allowed in ${engine === 'browser' ? 'a browser' : 'an HTTP'} workflow`);
+    if (s.type === 'group') checkEngine(s.steps, engine, errors, `${where}.`);
+  });
+}
+
 export function countRequests(steps: Step[]): number {
   let n = 0;
   for (const s of steps) {
-    if (s.type === 'request' || s.type === 'page') n++;
+    if (s.type === 'request' || s.type === 'page' || s.type === 'goto') n++;
     else if (s.type === 'group') n += countRequests(s.steps);
   }
   return n;
@@ -252,9 +266,18 @@ export interface RunnerConfig {
   variables: Record<string, string>;
   datasets: Record<string, Record<string, unknown>[]>;
   timeout: string;
-  flows: { id: string; name: string; weight: number; resetSession: boolean; variables: Record<string, string>; steps: Step[] }[];
+  flows: { id: string; name: string; engine: Engine; weight: number; resetSession: boolean; variables: Record<string, string>; steps: Step[] }[];
   options: Record<string, unknown>;
-  meta: { kind: Profile['kind']; estDurationSec: number; peakVus: number; arrival: boolean; autoStop: PlanConfig['autoStop']; shards: number };
+  meta: {
+    kind: Profile['kind'];
+    estDurationSec: number;
+    peakVus: number;
+    arrival: boolean;
+    autoStop: PlanConfig['autoStop'];
+    shards: number;
+    /** VUs running browser workflows (0 = none); such runs need a worker with Chromium */
+    browserVus: number;
+  };
 }
 
 export async function compileRun(site: SiteRow, planInput: unknown, load: WorkflowLoader): Promise<{ runner: RunnerConfig; plan: PlanConfig }> {
@@ -273,8 +296,10 @@ export async function compileRun(site: SiteRow, planInput: unknown, load: Workfl
     try {
       const def = parseWorkflowDefinition(wf.definition);
       const steps = await inlineIncludes(def.steps, load, [wf.id]);
+      const engine = def.engine ?? 'http';
       checkStaticHosts(steps, allowed, errors, `${wf.name}.`);
-      flows.push({ id: wf.id, name: wf.name, weight: f.weight, resetSession: def.resetSession ?? true, variables: def.variables ?? {}, steps });
+      checkEngine(steps, engine, errors, `${wf.name}.`);
+      flows.push({ id: wf.id, name: wf.name, engine, weight: f.weight, resetSession: def.resetSession ?? true, variables: def.variables ?? {}, steps });
     } catch (e) {
       if (e instanceof CompileError) errors.push(...e.errors.map((x) => `${wf.name}: ${x}`));
       else throw e;
@@ -297,6 +322,34 @@ export async function compileRun(site: SiteRow, planInput: unknown, load: Workfl
     if (shards > minVus) errors.push(`workers (${shards}) cannot exceed the VU count (${minVus}); each worker needs at least one VU`);
   }
 
+  // Browser workflows: alone they run the plan's profile in Chromium; next to HTTP workflows they get a
+  // small fixed group of browser VUs for the whole test, so the HTTP flows make the load and these measure it.
+  const browserOnly = flows.length > 0 && flows.every((f) => f.engine === 'browser');
+  const mixed = !browserOnly && flows.some((f) => f.engine === 'browser');
+  const chromium = { browser: { type: 'chromium' } };
+  let browserVus = 0;
+  let browserScenario: Record<string, unknown> | null = null;
+  if (sc && browserOnly) {
+    browserVus = sc.peakVus;
+    sc.scenario = { ...sc.scenario, exec: 'browserFlow', options: chromium };
+  } else if (sc && mixed) {
+    browserVus = plan.profile.kind === 'debug' ? 1 : (plan.options.browserVus ?? 1);
+    browserScenario =
+      plan.profile.kind === 'debug'
+        ? { ...sc.scenario, exec: 'browserFlow', options: chromium }
+        : {
+            executor: 'constant-vus',
+            vus: browserVus,
+            duration: `${sc.estDurationSec}s`,
+            gracefulStop: `${plan.options.gracefulStopSec ?? 10}s`,
+            exec: 'browserFlow',
+            options: chromium,
+          };
+  }
+  if (browserVus > config.limits.maxBrowserVus) {
+    errors.push(`browser VUs can be at most ${config.limits.maxBrowserVus} (requested: ${browserVus}); each one runs a Chromium page`);
+  }
+
   if (plan.profile.kind === 'breakpoint') {
     if (!plan.autoStop.p95Ms && !plan.autoStop.errorRate) {
       errors.push('a breakpoint test requires an auto-stop threshold (p95 ms or error rate)');
@@ -315,7 +368,7 @@ export async function compileRun(site: SiteRow, planInput: unknown, load: Workfl
   if (t.checksRate !== undefined) thresholds.checks = [`rate>${t.checksRate}`];
 
   const options: Record<string, unknown> = {
-    scenarios: { main: sc.scenario },
+    scenarios: browserScenario ? { main: sc.scenario, browser: browserScenario } : { main: sc.scenario },
     thresholds,
     summaryTrendStats: ['avg', 'min', 'med', 'max', 'p(90)', 'p(95)', 'p(99)'],
     insecureSkipTLSVerify: plan.options.insecureSkipTLSVerify ?? false,
@@ -337,7 +390,7 @@ export async function compileRun(site: SiteRow, planInput: unknown, load: Workfl
       timeout: `${plan.options.httpTimeoutSec ?? 30}s`,
       flows,
       options,
-      meta: { kind: plan.profile.kind, estDurationSec: sc.estDurationSec, peakVus: sc.peakVus, arrival: sc.arrival, autoStop: plan.autoStop, shards },
+      meta: { kind: plan.profile.kind, estDurationSec: sc.estDurationSec, peakVus: sc.peakVus, arrival: sc.arrival, autoStop: plan.autoStop, shards, browserVus },
     },
   };
 }

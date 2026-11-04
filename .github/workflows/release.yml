@@ -46,9 +46,33 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+      # the same image with Chromium, for workers that run browser workflows (tags end in -browser)
+      - id: meta-browser
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.IMAGE }}
+          flavor: |
+            latest=false
+            suffix=-browser
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=raw,value=latest
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          build-args: BROWSER=true
+          tags: ${{ steps.meta-browser.outputs.tags }}
+          labels: ${{ steps.meta-browser.outputs.labels }}
+          cache-from: type=gha,scope=browser
+          cache-to: type=gha,mode=max,scope=browser
+
       - name: GitHub release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           gh release create "$GITHUB_REF_NAME" --generate-notes \
-            --notes "Docker image: \`${IMAGE}:${GITHUB_REF_NAME#v}\`" || gh release edit "$GITHUB_REF_NAME" --draft=false
+            --notes "Docker image: \`${IMAGE}:${GITHUB_REF_NAME#v}\` (with Chromium for browser workflows: \`${IMAGE}:${GITHUB_REF_NAME#v}-browser\`)" || gh release edit "$GITHUB_REF_NAME" --draft=false

@@ -1,7 +1,8 @@
 import os from 'node:os';
+import { existsSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { config, env } from './lib/config.js';
-import { and, asc, eq, gt, inArray, lte } from 'drizzle-orm';
+import { and, asc, eq, gt, inArray, lte, or } from 'drizzle-orm';
 import { db, migrate, waitForDb } from './lib/db.js';
 import { runs } from './db/schema.js';
 import { createRedis, keys, redis } from './lib/redis.js';
@@ -11,11 +12,13 @@ import { active, executeRun, reportShardCrash, type RunRow } from './worker/exec
 const workerId = env.WORKER_ID ?? `worker-${os.hostname()}-${process.pid}`;
 let shuttingDown = false;
 let k6Version = 'unknown';
+/** Chromium is installed (the -browser image), so this worker can run browser workflows */
+const hasBrowser = existsSync(config.browserPath);
 
-const runColumns = { id: runs.id, name: runs.name, kind: runs.kind, status: runs.status, config: runs.config, shards: runs.shards };
+const runColumns = { id: runs.id, name: runs.name, kind: runs.kind, status: runs.status, config: runs.config, shards: runs.shards, browser: runs.browser };
 
-/** Workers whose heartbeat says they're free (this one included). */
-async function idleWorkers(): Promise<number> {
+/** Workers whose heartbeat says they're free (this one included); `browser` counts only those with Chromium. */
+async function idleWorkers(): Promise<{ all: number; browser: number }> {
   const found: string[] = [];
   let cursor = '0';
   do {
@@ -24,14 +27,19 @@ async function idleWorkers(): Promise<number> {
     found.push(...batch);
   } while (cursor !== '0');
   const values = found.length ? await redis.mget(...found) : [];
-  const idle = values.filter((v) => {
+  let all = 0;
+  let browser = 0;
+  for (const v of values) {
     try {
-      return v !== null && JSON.parse(v).activeRun === null;
+      const hb = v === null ? null : JSON.parse(v);
+      if (hb?.activeRun !== null) continue;
+      all++;
+      if (hb.browser) browser++;
     } catch {
-      return false;
+      /* malformed heartbeat */
     }
-  }).length;
-  return Math.max(1, idle);
+  }
+  return { all: Math.max(1, all), browser: hasBrowser ? Math.max(1, browser) : browser };
 }
 
 /**
@@ -41,10 +49,14 @@ async function idleWorkers(): Promise<number> {
  */
 async function claim(): Promise<RunRow | null> {
   const idle = await idleWorkers();
+  // a worker without Chromium leaves browser runs to the ones that have it
+  const fits = hasBrowser
+    ? or(and(eq(runs.browser, false), lte(runs.shards, idle.all)), and(eq(runs.browser, true), lte(runs.shards, idle.browser)))
+    : and(eq(runs.browser, false), lte(runs.shards, idle.all));
   const next = db
     .select({ id: runs.id })
     .from(runs)
-    .where(and(eq(runs.status, 'queued'), lte(runs.shards, idle)))
+    .where(and(eq(runs.status, 'queued'), fits))
     .orderBy(asc(runs.createdAt))
     .limit(1)
     .for('update', { skipLocked: true });
@@ -65,7 +77,7 @@ async function claimHelper(): Promise<{ run: RunRow; shard: number } | null> {
     .orderBy(asc(runs.createdAt))
     .limit(10);
   for (const { workerId: leadId, ...run } of waiting) {
-    if (leadId === workerId) continue;
+    if (leadId === workerId || (run.browser && !hasBrowser)) continue;
     for (let i = 1; i < run.shards; i++) {
       if ((await redis.set(keys.shard(run.id, i), workerId, 'EX', 86400, 'NX')) === 'OK') return { run, shard: i };
     }
@@ -82,11 +94,11 @@ async function main() {
   }
   await waitForDb();
   await migrate();
-  console.log(`[worker] ${workerId} ready — ${k6Version}`);
+  console.log(`[worker] ${workerId} ready — ${k6Version}${hasBrowser ? ' + browser' : ''}`);
 
   // `busyWith` marks the worker busy right after a claim, before the next 5 s beat
   const hb = async (busyWith?: string) => {
-    await redis.set(keys.workerHb(workerId), JSON.stringify({ activeRun: busyWith ?? active?.id ?? null, at: Date.now() }), 'EX', 30).catch(() => {});
+    await redis.set(keys.workerHb(workerId), JSON.stringify({ activeRun: busyWith ?? active?.id ?? null, browser: hasBrowser, at: Date.now() }), 'EX', 30).catch(() => {});
   };
   await hb();
   setInterval(hb, 5000).unref();
@@ -95,6 +107,7 @@ async function main() {
     const s = active?.sampler;
     return {
       k6Version,
+      browser: hasBrowser,
       activeRun: active ? { id: active.id, name: active.name, startedAt: new Date(active.startedAt).toISOString() } : null,
       k6: s ? { maxCpuPct: Math.round(s.maxCpu), lastAvgCpuPct: s.samples ? Math.round(s.sumCpu / s.samples) : 0, maxRssBytes: s.maxRss } : null,
     };

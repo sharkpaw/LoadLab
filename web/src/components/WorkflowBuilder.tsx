@@ -3,13 +3,21 @@ import {
   ArrowDown,
   ArrowUp,
   Boxes,
+  CheckCheck,
   Clock,
   Copy,
   FileText,
   Globe2,
+  Hourglass,
+  Keyboard,
+  ListChecks,
+  MonitorPlay,
+  MousePointerClick,
   Puzzle,
   Plus,
+  ScanText,
   Send,
+  TextCursorInput,
   Trash2,
   Variable,
 } from 'lucide-react';
@@ -21,6 +29,7 @@ import { Badge, Button, Field, Input, KeyValueEditor, NumberInput, Select, Texta
 
 export type Step = Record<string, any> & { type: string };
 export type Path = number[];
+export type Engine = 'http' | 'browser';
 
 export function getAt(steps: Step[], path: Path): Step | null {
   let list = steps;
@@ -84,6 +93,21 @@ export const NEW_STEP: Record<string, () => Step> = {
   set: () => ({ type: 'set', vars: { variable: '{{$randomInt 1 10}}' } }),
   group: () => ({ type: 'group', name: 'Group', probability: 0.5, steps: [] }),
   include: () => ({ type: 'include', workflowId: '' }),
+  goto: () => ({ type: 'goto', name: 'Open page', url: '/' }),
+  click: () => ({ type: 'click', name: 'Click', selector: 'button' }),
+  fill: () => ({ type: 'fill', name: 'Fill', selector: 'input[name="q"]', value: '' }),
+  select: () => ({ type: 'select', name: 'Select', selector: 'select', value: '' }),
+  press: () => ({ type: 'press', name: 'Press key', selector: 'input', key: 'Enter' }),
+  waitFor: () => ({ type: 'waitFor', name: 'Wait', selector: '', state: 'visible' }),
+  expect: () => ({ type: 'expect', name: 'Expect', selector: '' }),
+  read: () => ({ type: 'read', name: 'Read', selector: '', var: 'value' }),
+};
+
+const SHARED_TYPES = ['think', 'set', 'group', 'include'];
+/** Step types offered for each engine; HTTP and browser steps can't be mixed in one workflow. */
+export const ENGINE_TYPES: Record<Engine, string[]> = {
+  http: ['page', 'request', ...SHARED_TYPES],
+  browser: ['goto', 'click', 'fill', 'select', 'press', 'waitFor', 'expect', 'read', ...SHARED_TYPES],
 };
 
 const TYPE_META: Record<string, { label: string; icon: ReactNode; tone: string }> = {
@@ -93,6 +117,31 @@ const TYPE_META: Record<string, { label: string; icon: ReactNode; tone: string }
   set: { label: msg('Variable'), icon: <Variable className="size-3.5" />, tone: 'text-tint-amber' },
   group: { label: msg('Group'), icon: <Boxes className="size-3.5" />, tone: 'text-tint-violet' },
   include: { label: msg('Module'), icon: <Puzzle className="size-3.5" />, tone: 'text-tint-pink' },
+  goto: { label: msg('Open page'), icon: <MonitorPlay className="size-3.5" />, tone: 'text-tint-blue' },
+  click: { label: msg('Click'), icon: <MousePointerClick className="size-3.5" />, tone: 'text-tint-green' },
+  fill: { label: msg('Fill'), icon: <TextCursorInput className="size-3.5" />, tone: 'text-tint-green' },
+  select: { label: msg('Select option'), icon: <ListChecks className="size-3.5" />, tone: 'text-tint-green' },
+  press: { label: msg('Press key'), icon: <Keyboard className="size-3.5" />, tone: 'text-tint-green' },
+  waitFor: { label: msg('Wait for'), icon: <Hourglass className="size-3.5" />, tone: 'text-ink-3' },
+  expect: { label: msg('Expect'), icon: <CheckCheck className="size-3.5" />, tone: 'text-tint-amber' },
+  read: { label: msg('Read value'), icon: <ScanText className="size-3.5" />, tone: 'text-tint-amber' },
+};
+
+const TYPE_HINT: Record<string, string> = {
+  page: msg('HTML + assets'),
+  request: msg('API call'),
+  think: msg('user pauses'),
+  set: msg('assignment'),
+  group: msg('probability/repeat'),
+  include: msg('shared flow'),
+  goto: msg('load a URL'),
+  click: msg('button, link'),
+  fill: msg('type into a field'),
+  select: msg('dropdown'),
+  press: msg('Enter, Tab…'),
+  waitFor: msg('element appears'),
+  expect: msg('assert text/URL'),
+  read: msg('into a variable'),
 };
 
 function stepTitle(s: Step, modules: Record<string, string>): string {
@@ -109,6 +158,12 @@ function stepTitle(s: Step, modules: Record<string, string>): string {
 }
 
 function stepSub(s: Step): string | null {
+  if (s.type === 'goto') return s.url;
+  if (s.type === 'fill' || s.type === 'select') return `${s.selector} ← ${s.value}`;
+  if (s.type === 'press') return `${s.selector} · ${s.key}`;
+  if (s.type === 'expect') return [s.selector, s.textContains && `“${s.textContains}”`, s.urlContains && `URL ∋ ${s.urlContains}`].filter(Boolean).join(' · ');
+  if (s.type === 'read') return `${s.selector}${s.attr ? ` @${s.attr}` : ''} → {{${s.var}}}`;
+  if (['click', 'waitFor'].includes(s.type)) return s.selector;
   if (s.type === 'request') return `${s.method ?? 'GET'} ${s.url}`;
   if (s.type === 'page') return `GET ${s.url}${s.assets ? ` + ${t('assets')}` : ''}`;
   if (s.type === 'group') return t('{n} steps', { n: s.steps?.length ?? 0 }) + (s.repeat ? ` · ${t('{min}–{max} times', { min: s.repeat.min, max: s.repeat.max })}` : '');
@@ -118,7 +173,7 @@ function stepSub(s: Step): string | null {
 // ---------------------------------------------------------------------------
 // flow view
 
-function AddMenu({ onAdd, compact }: { onAdd: (type: string) => void; compact?: boolean }) {
+function AddMenu({ onAdd, compact, engine }: { onAdd: (type: string) => void; compact?: boolean; engine: Engine }) {
   const [open, setOpen] = useState(false);
   return (
     <div className="relative">
@@ -132,7 +187,7 @@ function AddMenu({ onAdd, compact }: { onAdd: (type: string) => void; compact?: 
         <>
           <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
           <div className="absolute left-0 z-20 mt-1 w-56 rounded-md border border-line-strong bg-surface-2 p-1 shadow-xl">
-            {Object.entries(TYPE_META).map(([type, m]) => (
+            {ENGINE_TYPES[engine].map((type) => [type, TYPE_META[type]] as const).map(([type, m]) => (
               <button
                 key={type}
                 onClick={() => {
@@ -144,7 +199,7 @@ function AddMenu({ onAdd, compact }: { onAdd: (type: string) => void; compact?: 
                 <span className={m.tone}>{m.icon}</span>
                 {t(m.label)}
                 <span className="ml-auto text-[10px] text-ink-3">
-                  {t(({ page: msg('HTML + assets'), request: msg('API call'), think: msg('user pauses'), set: msg('assignment'), group: msg('probability/repeat'), include: msg('shared flow') } as Record<string, string>)[type])}
+                  {t(TYPE_HINT[type])}
                 </span>
               </button>
             ))}
@@ -164,9 +219,10 @@ interface FlowProps {
   root: Step[];
   modules: Record<string, string>;
   issues: Record<string, boolean>;
+  engine: Engine;
 }
 
-function FlowList({ steps, parent, selected, onSelect, onChange, root, modules, issues }: FlowProps) {
+function FlowList({ steps, parent, selected, onSelect, onChange, root, modules, issues, engine }: FlowProps) {
   const isSel = (p: Path) => selected && selected.length === p.length && selected.every((x, i) => x === p[i]);
   return (
     <div className="space-y-0">
@@ -194,7 +250,7 @@ function FlowList({ steps, parent, selected, onSelect, onChange, root, modules, 
                   <div className="flex flex-wrap items-center gap-1.5">
                     <span className="min-w-0 truncate text-sm font-medium">{stepTitle(s, modules)}</span>
                     {s.probability !== undefined && s.probability < 1 && <Badge tone="accent">{Math.round(s.probability * 100)}%</Badge>}
-                    {(s.type === 'request' || s.type === 'page') && s.abortOnFail === false && <Badge>{t('continue on error')}</Badge>}
+                    {!['think', 'set', 'group', 'include'].includes(s.type) && s.abortOnFail === false && <Badge>{t('continue on error')}</Badge>}
                     {s.extract?.length > 0 && <Badge tone="warn">→ {s.extract.map((x: any) => x.var).join(', ')}</Badge>}
                   </div>
                   {sub && <div className="truncate font-mono text-[11px] text-ink-3">{sub}</div>}
@@ -216,9 +272,9 @@ function FlowList({ steps, parent, selected, onSelect, onChange, root, modules, 
               </div>
               {s.type === 'group' && (
                 <div className="mt-2 border-l-2 border-[#9085e9]/40 pl-3" onClick={(e) => e.stopPropagation()}>
-                  <FlowList steps={s.steps ?? []} parent={path} selected={selected} onSelect={onSelect} onChange={onChange} root={root} modules={modules} issues={issues} />
+                  <FlowList steps={s.steps ?? []} parent={path} selected={selected} onSelect={onSelect} onChange={onChange} root={root} modules={modules} issues={issues} engine={engine} />
                   <div className="mt-2">
-                    <AddMenu compact onAdd={(t) => {
+                    <AddMenu compact engine={engine} onAdd={(t) => {
                       onChange(insertAt(root, path, s.steps?.length ?? 0, NEW_STEP[t]()));
                       onSelect([...path, s.steps?.length ?? 0]);
                     }} />
@@ -241,15 +297,17 @@ function IconBtn({ children, onClick, label }: { children: ReactNode; onClick: (
   );
 }
 
-export function FlowView(props: { steps: Step[]; selected: Path | null; onSelect: (p: Path) => void; onChange: (s: Step[]) => void; modules: Record<string, string>; issues?: Record<string, boolean> }) {
+export function FlowView(props: { steps: Step[]; selected: Path | null; onSelect: (p: Path) => void; onChange: (s: Step[]) => void; modules: Record<string, string>; issues?: Record<string, boolean>; engine?: Engine }) {
+  const engine = props.engine ?? 'http';
   return (
     <div>
       <div className="mb-3 flex items-center gap-2 text-xs text-ink-3">
         <span className="grid size-5 place-items-center rounded-full bg-good/20 text-good">▶</span> {t('Virtual user iteration starts')}
       </div>
-      <FlowList steps={props.steps} parent={[]} root={props.steps} selected={props.selected} onSelect={props.onSelect} onChange={props.onChange} modules={props.modules} issues={props.issues ?? {}} />
+      <FlowList steps={props.steps} parent={[]} root={props.steps} selected={props.selected} onSelect={props.onSelect} onChange={props.onChange} modules={props.modules} issues={props.issues ?? {}} engine={engine} />
       <div className="ml-5 h-3 w-px bg-line-strong" />
       <AddMenu
+        engine={engine}
         onAdd={(t) => {
           props.onChange(insertAt(props.steps, [], props.steps.length, NEW_STEP[t]()));
           props.onSelect([props.steps.length]);
@@ -582,9 +640,125 @@ export function StepForm({ step, onChange, workflows, selfId }: { step: Step; on
           <CommonFields step={step} set={set} httpLike={false} />
         </div>
       );
+    case 'goto':
+    case 'click':
+    case 'fill':
+    case 'select':
+    case 'press':
+    case 'waitFor':
+    case 'expect':
+    case 'read':
+      return <BrowserStepForm step={step} set={set} />;
     default:
       return <div className="text-sm text-ink-3">{t('Unknown step type')}</div>;
   }
+}
+
+function SelectorField({ step, set, optional }: { step: Step; set: (p: Partial<Step>) => void; optional?: boolean }) {
+  return (
+    <Field label={optional ? t('Selector (optional)') : t('Selector')} hint={t('CSS selector, or text=Buy now for visible text')}>
+      <Input className="font-mono text-xs" value={step.selector ?? ''} onChange={(e) => set({ selector: e.target.value })} placeholder="button[type=submit]" />
+    </Field>
+  );
+}
+
+function BrowserStepForm({ step, set }: { step: Step; set: (p: Partial<Step>) => void }) {
+  const nav = (
+    <Toggle checked={!!step.waitForNavigation} onChange={(v) => set({ waitForNavigation: v || undefined })} label={t('Wait for the next page to load')} />
+  );
+  return (
+    <div className="space-y-4">
+      <Field label={t('Step name')} hint={t('Shown in reports under this name')}>
+        <Input value={step.name ?? ''} onChange={(e) => set({ name: e.target.value })} />
+      </Field>
+      {step.type === 'goto' && (
+        <>
+          <Field label="URL">
+            <Input className="font-mono text-xs" value={step.url ?? ''} onChange={(e) => set({ url: e.target.value })} placeholder="/product/{{productId}}" />
+          </Field>
+          <Field label={t('Done when')} hint={t('Network idle waits until the page stops loading data (slower, closer to “fully loaded”)')}>
+            <Select
+              value={step.waitUntil ?? 'load'}
+              onChange={(e) => set({ waitUntil: e.target.value === 'load' ? undefined : e.target.value })}
+              options={[
+                { value: 'load', label: t('Page loaded (load)') },
+                { value: 'domcontentloaded', label: t('HTML parsed (DOMContentLoaded)') },
+                { value: 'networkidle', label: t('Network idle') },
+              ]}
+            />
+          </Field>
+        </>
+      )}
+      {['click', 'fill', 'select', 'press', 'waitFor', 'read'].includes(step.type) && <SelectorField step={step} set={set} />}
+      {(step.type === 'fill' || step.type === 'select') && (
+        <Field label={t('Value')} hint={t('Templates work: {{data.users.email}}')}>
+          <Input className="font-mono text-xs" value={step.value ?? ''} onChange={(e) => set({ value: e.target.value })} />
+        </Field>
+      )}
+      {step.type === 'press' && (
+        <Field label={t('Key')} hint="Enter, Tab, Escape, ArrowDown…">
+          <Input className="font-mono text-xs" value={step.key ?? ''} onChange={(e) => set({ key: e.target.value })} />
+        </Field>
+      )}
+      {(step.type === 'click' || step.type === 'press') && nav}
+      {step.type === 'waitFor' && (
+        <Field label={t('Until the element is')}>
+          <Select
+            value={step.state ?? 'visible'}
+            onChange={(e) => set({ state: e.target.value === 'visible' ? undefined : e.target.value })}
+            options={[
+              { value: 'visible', label: t('visible') },
+              { value: 'hidden', label: t('hidden') },
+              { value: 'attached', label: t('in the page') },
+              { value: 'detached', label: t('removed') },
+            ]}
+          />
+        </Field>
+      )}
+      {step.type === 'expect' && (
+        <>
+          <SelectorField step={step} set={set} optional />
+          <div className="grid grid-cols-2 gap-3">
+            <Field label={t('Text contains')}>
+              <Input value={step.textContains ?? ''} onChange={(e) => set({ textContains: e.target.value })} />
+            </Field>
+            <Field label={t('URL contains')}>
+              <Input className="font-mono text-xs" value={step.urlContains ?? ''} onChange={(e) => set({ urlContains: e.target.value })} placeholder="/checkout" />
+            </Field>
+          </div>
+          <Toggle checked={step.visible === false} onChange={(v) => set({ visible: v ? false : undefined })} label={t('Expect the element to be hidden')} />
+        </>
+      )}
+      {step.type === 'read' && (
+        <div className="grid grid-cols-3 gap-3">
+          <Field label={t('Variable')}>
+            <Input className="font-mono text-xs" value={step.var ?? ''} onChange={(e) => set({ var: e.target.value })} />
+          </Field>
+          <Field label={t('Attribute')} hint={t('Empty = text')}>
+            <Input className="font-mono text-xs" value={step.attr ?? ''} onChange={(e) => set({ attr: e.target.value })} placeholder="href" />
+          </Field>
+          <Field label={t('Pick')}>
+            <Select
+              value={step.pick ?? 'first'}
+              onChange={(e) => set({ pick: e.target.value === 'first' ? undefined : e.target.value })}
+              options={[
+                { value: 'first', label: t('first') },
+                { value: 'random', label: t('random') },
+                { value: 'all', label: t('all') },
+              ]}
+            />
+          </Field>
+          <div className="col-span-3">
+            <Toggle checked={!!step.required} onChange={(v) => set({ required: v || undefined })} label={t('Fail the step if nothing matches')} />
+          </div>
+        </div>
+      )}
+      <CommonFields step={step} set={set} />
+      <Field label={t('Timeout (ms)')}>
+        <NumberInput value={step.timeoutMs} onChange={(v) => set({ timeoutMs: v })} placeholder="30000" />
+      </Field>
+    </div>
+  );
 }
 
 export const TEMPLATES: { key: string; label: string; desc: string; icon: ReactNode; def: any }[] = [
@@ -628,6 +802,22 @@ export const TEMPLATES: { key: string; label: string; desc: string; icon: ReactN
             },
           ],
         },
+      ],
+    },
+  },
+  {
+    key: 'browser',
+    label: msg('Browser journey'),
+    desc: msg('A real Chromium page: open, search, check the result. Measures Web Vitals (LCP, CLS, INP)'),
+    icon: <MonitorPlay className="size-4" />,
+    def: {
+      engine: 'browser',
+      steps: [
+        { type: 'goto', name: 'Home page', url: '/' },
+        { type: 'think', min: 2, max: 4 },
+        { type: 'fill', name: 'Search term', selector: 'input[type=search], input[name=q]', value: 'shoes' },
+        { type: 'press', name: 'Search', selector: 'input[type=search], input[name=q]', key: 'Enter', waitForNavigation: true },
+        { type: 'expect', name: 'Results shown', selector: 'main' },
       ],
     },
   },

@@ -22,6 +22,13 @@
       "when": 1793469133727,
       "tag": "0002_run_shards",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1793535595067,
+      "tag": "0003_run_browser",
+      "breakpoints": true
     }
   ]
 }

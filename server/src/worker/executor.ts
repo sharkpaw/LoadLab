@@ -20,6 +20,8 @@ export interface RunRow {
   config: RunnerConfig;
   /** Workers the run is split across; shard 0 is the lead worker */
   shards: number;
+  /** Runs browser workflows (Chromium) */
+  browser: boolean;
 }
 
 export interface ActiveRun {
@@ -95,6 +97,21 @@ function send(runId: string, m: ShardMsg) {
 }
 
 /** Tells the lead worker that this helper crashed outside k6 (so it doesn't wait for it). */
+/**
+ * Chromium settings for browser runs. Every host outside the allowlist goes to a dead proxy, so pages can't
+ * reach it (third-party scripts included); runner.js also blocks them with page.route and reports them.
+ * no-sandbox: Chromium's sandbox needs user namespaces, which containers don't allow by default.
+ */
+export function browserEnv(allowedHosts: string[]): Record<string, string> {
+  const loopback = allowedHosts.some((h) => h === 'localhost' || h === '127.0.0.1' || h === '[::1]');
+  const bypass = [...allowedHosts, ...(loopback ? [] : ['<-loopback>'])].join(';');
+  return {
+    K6_BROWSER_EXECUTABLE_PATH: config.browserPath,
+    K6_BROWSER_HEADLESS: 'true',
+    K6_BROWSER_ARGS: ['no-sandbox', 'proxy-server=http://127.0.0.1:9', `proxy-bypass-list=${bypass}`].join(','),
+  };
+}
+
 export async function reportShardCrash(run: RunRow, shard: number, workerId: string, err: Error) {
   const result: ShardResult = {
     shard,
@@ -250,7 +267,9 @@ export async function executeRun(run: RunRow, workerId: string, shard = 0): Prom
   ];
 
   let startedAt = Date.now();
-  const child: ChildProcess = spawn(config.k6Bin, args, { cwd: dir, stdio: ['ignore', 'pipe', 'pipe'], env: { ...process.env, K6_NO_USAGE_REPORT: 'true' } });
+  const env: NodeJS.ProcessEnv = { ...process.env, K6_NO_USAGE_REPORT: 'true' };
+  if (run.browser) Object.assign(env, browserEnv(run.config.allowedHosts));
+  const child: ChildProcess = spawn(config.k6Bin, args, { cwd: dir, stdio: ['ignore', 'pipe', 'pipe'], env });
   const sampler = child.pid ? new ProcSampler(child.pid) : null;
   // listen right away: on a distributed run k6 can exit while we are still waiting for the other workers
   let k6Exited = false;
@@ -628,6 +647,10 @@ export async function executeRun(run: RunRow, workerId: string, shard = 0): Prom
 
   if (summary.droppedIterations > 0) {
     warnings.unshift(`${summary.droppedIterations} iterations could not start (dropped). The VU pool was too small for the target rate, or the system slowed down; increase maxVUs.`);
+  }
+  if (summary.blockedHosts.length) {
+    const list = summary.blockedHosts.map((b: { key: string; count: number }) => `${b.key} (${b.count})`).join(', ');
+    warnings.push(`Blocked requests to hosts outside the allowed list: ${list}. Add a host to the site's allowed hosts if it belongs to the test.`);
   }
   for (const r of all) for (const w of r.warnings) warnings.push(distributed ? `Worker ${r.workerId}: ${w}` : w);
   summary.warnings = warnings;

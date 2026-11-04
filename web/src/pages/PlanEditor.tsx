@@ -17,7 +17,7 @@ interface PlanCfg {
   profile: Profile;
   thresholds: { p95Ms?: number; p99Ms?: number; errorRate?: number; checksRate?: number };
   autoStop: { enabled: boolean; p95Ms?: number; errorRate?: number; windowSec: number; graceSec: number };
-  options: { httpTimeoutSec?: number; insecureSkipTLSVerify?: boolean; userAgent?: string; gracefulStopSec?: number; workers?: number };
+  options: { httpTimeoutSec?: number; insecureSkipTLSVerify?: boolean; userAgent?: string; gracefulStopSec?: number; workers?: number; browserVus?: number };
 }
 
 const EMPTY: PlanCfg = {
@@ -228,6 +228,7 @@ export default function PlanEditorPage({ me }: { me: Me }) {
                         <div className="flex gap-1 text-xs text-ink-3">
                           {w.siteId ? null : <span>{t('shared module')} ·</span>}
                           <StatusBadge status={w.status} />
+                          {w.definition?.engine === 'browser' && <Badge tone="accent">{t('Browser')}</Badge>}
                         </div>
                       </div>
                       {f && (
@@ -270,8 +271,20 @@ export default function PlanEditorPage({ me }: { me: Me }) {
                     </dd>
                   </>
                 )}
+                {preview.meta.browserVus > 0 && (
+                  <>
+                    <dt className="text-ink-3">{t('Browser VUs')}</dt>
+                    <dd className={preview.browserWorkersOnline ? 'tabular' : 'tabular text-bad'}>
+                      {t('{n} (browser workers online: {online})', { n: preview.meta.browserVus, online: preview.browserWorkersOnline ?? 0 })}
+                    </dd>
+                  </>
+                )}
                 <dt className="text-ink-3">{t('Flows')}</dt>
-                <dd>{preview.flows.map((f: any) => `${f.name} (${t('{n} requests', { n: f.requests })})`).join(', ')}</dd>
+                <dd>
+                  {preview.flows
+                    .map((f: any) => `${f.name} (${f.engine === 'browser' ? `${t('browser')}, ` : ''}${t('{n} requests', { n: f.requests })})`)
+                    .join(', ')}
+                </dd>
               </dl>
             ) : (
               <p className="text-sm text-ink-3">{t('A summary appears here once a site, at least one workflow and a profile are selected.')}</p>
@@ -337,6 +350,14 @@ export default function PlanEditorPage({ me }: { me: Me }) {
               >
                 <NumberInput min={1} max={32} value={cfg.options.workers} onChange={(v) => upd({ options: { ...cfg.options, workers: v && v > 1 ? v : undefined } })} placeholder="1" />
               </Field>
+              {preview?.flows?.some((f: any) => f.engine === 'browser') && preview.flows.some((f: any) => f.engine !== 'browser') && (
+                <Field
+                  label={t('Browser VUs')}
+                  hint={t('Real Chromium users that run the browser workflows for the whole test, next to the HTTP load, and measure what users see. Each needs about half a CPU core.')}
+                >
+                  <NumberInput min={1} max={100} value={cfg.options.browserVus} onChange={(v) => upd({ options: { ...cfg.options, browserVus: v && v > 1 ? v : undefined } })} placeholder="1" />
+                </Field>
+              )}
               <Field label="User-Agent">
                 <Input value={cfg.options.userAgent ?? ''} onChange={(e) => upd({ options: { ...cfg.options, userAgent: e.target.value || undefined } })} placeholder="LoadLab/1.0 (+k6)" />
               </Field>

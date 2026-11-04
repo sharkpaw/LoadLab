@@ -6,11 +6,12 @@ import { sourceLabel } from '../lib/constants';
 import { t } from '../lib/i18n';
 import { fmtDate } from '../lib/format';
 import { Alert, Badge, Button, Card, Field, Input, KeyValueEditor, Loading, Modal, PageHeader, Select, StatusBadge, Tabs, Textarea, Toggle, useLoad, useToast } from '../components/ui';
-import { FlowView, StepForm, TEMPLATES, getAt, updateAt, type Path, type Step } from '../components/WorkflowBuilder';
+import { FlowView, StepForm, TEMPLATES, getAt, updateAt, type Engine, type Path, type Step } from '../components/WorkflowBuilder';
 import { DebugTrace, type DebugEntry } from '../components/DebugTrace';
 import type { Site } from '../components/SiteForm';
 
 interface Definition {
+  engine?: Engine;
   variables?: Record<string, string>;
   resetSession?: boolean;
   steps: Step[];
@@ -226,12 +227,33 @@ export default function WorkflowEditorPage() {
       {tab === 'flow' && (
         <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]">
           <div className="space-y-4">
-            <Card title={t('Flow')} actions={validation && <span className="text-xs text-ink-3">{t('{n} requests / iteration', { n: validation.requestCount })}</span>}>
-              <FlowView steps={def.steps} selected={selected} onSelect={setSelected} onChange={setSteps} modules={modules} />
+            <Card title={t('Flow')} actions={validation && <span className="text-xs text-ink-3">{def.engine === 'browser' ? t('{n} page visits / iteration', { n: validation.requestCount }) : t('{n} requests / iteration', { n: validation.requestCount })}</span>}>
+              <FlowView steps={def.steps} selected={selected} onSelect={setSelected} onChange={setSteps} modules={modules} engine={def.engine ?? 'http'} />
             </Card>
             <Card title={t('Flow settings')}>
               <div className="space-y-4">
-                <Toggle checked={def.resetSession !== false} onChange={(v) => change({ ...def, resetSession: v })} label={t('New visitor every iteration (reset cookies)')} />
+                <Field
+                  label={t('Runs in')}
+                  hint={
+                    def.engine === 'browser'
+                      ? t('A real Chromium page per virtual user: measures what users see (Web Vitals), but costs about half a CPU core each. Needs a worker with a browser.')
+                      : t('Sends HTTP requests directly: light enough for thousands of virtual users.')
+                  }
+                >
+                  <Select
+                    value={def.engine ?? 'http'}
+                    onChange={(e) => change({ ...def, engine: e.target.value === 'browser' ? 'browser' : undefined })}
+                    options={[
+                      { value: 'http', label: t('HTTP (protocol level)') },
+                      { value: 'browser', label: t('Browser (Chromium)') },
+                    ]}
+                  />
+                </Field>
+                {def.engine === 'browser' ? (
+                  <p className="text-xs text-ink-3">{t('Every iteration starts as a new visitor with an empty browser.')}</p>
+                ) : (
+                  <Toggle checked={def.resetSession !== false} onChange={(v) => change({ ...def, resetSession: v })} label={t('New visitor every iteration (reset cookies)')} />
+                )}
                 <Field label={t('Workflow variables')} hint={t('Override site variables')}>
                   <KeyValueEditor value={def.variables ?? {}} onChange={(v) => change({ ...def, variables: Object.keys(v).length ? v : undefined })} keyPlaceholder={t('name')} />
                 </Field>

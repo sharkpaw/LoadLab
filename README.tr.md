@@ -44,6 +44,7 @@ k6 harika bir motor, ama her test için ayrı bir script ve terminalde akan say�
 - **Şablonlar:** `{{productId}}`, `{{data.users.email}}` (kullanıcı başına veri seti), `{{$randomInt 1 10}}`, `{{$uuid}}`, `{{$randomItem liste}}` gibi.
 - **Deneme çalıştırması:** 1 kullanıcı ve 1 iterasyonla her adımın durum kodunu, süresini, çıkarılan değişkenlerini ve yanıt önizlemesini gösterir.
 - **HAR içe aktarma:** Tarayıcıda gezintinizi kaydedin, taslak workflow olarak gelsin; aradaki beklemeler düşünme süresine dönüşür.
+- **Tarayıcı workflow'ları:** Workflow'u *Tarayıcı (Chromium)* olarak ayarlayıp gerçek bir sayfayı `goto`, `click`, `fill`, `select`, `press`, `waitFor`, `expect` ve `read` adımlarıyla yönetin. Bir planda HTTP workflow'larıyla birlikte kullanılabilir: yükü HTTP akışları üretir, birkaç tarayıcılı kullanıcı (*Tarayıcılı kullanıcılar*) ziyaretçinin gördüğünü ölçer. Sitenin izin listesi dışındaki host'lara (analytics, reklam scriptleri) giden istekler engellenir ve koşu uyarılarında listelenir. Chromium'lu bir worker gerekir (`BROWSER_WORKER_REPLICAS`).
 - Sürüm geçmişi, JSON görünümü, yerleşik DSL rehberi ve bir sayfanın bağlantılarını ve formlarını listeleyen sayfa inceleme aracı.
 
 ### Test planları ve profiller
@@ -202,6 +203,8 @@ Tüm değişkenler açılışta [t3-env](https://github.com/t3-oss/t3-env) ve zo
 | `TRUSTED_ORIGINS` | — | Ek panel adresleri (virgülle) |
 | `TRUST_PROXY_HOPS` | `1` | API'nin önündeki ters vekil sayısı (doğrudan açıksa `0`) |
 | `WORKER_REPLICAS` | `1` | Worker sayısı: aynı anda çalışabilecek test sayısı ve tek bir testin en fazla kaç worker'a bölünebileceği |
+| `BROWSER_WORKER_REPLICAS` | `0` | Tarayıcı workflow'ları için Chromium'lu worker sayısı (`worker-browser` servisi; imaj yaklaşık 1 GB daha büyük, her tarayıcılı kullanıcı yaklaşık yarım CPU çekirdeği ve 200 MB ister) |
+| `MAX_BROWSER_VUS` | `5` | Bir testin kullanabileceği en fazla tarayıcılı kullanıcı |
 | `MAX_VUS` / `MAX_RATE` / `MAX_DURATION_SEC` | 5000 / 20000 / 14400 | Güvenlik üst sınırları |
 | `MCP_ALLOW_RUN` | `false` | MCP istemcilerinin test başlatabilmesi |
 | `MCP_ALLOW_DEBUG` | `true` | MCP istemcilerinin 1 iterasyonluk deneme çalıştırabilmesi |

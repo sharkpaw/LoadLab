@@ -20,7 +20,10 @@ RUN bun install --frozen-lockfile --production
 
 # --- runtime image: Bun runs TypeScript directly, no build step ---
 FROM oven/bun:${BUN_VERSION}
-RUN apk add --no-cache tini ca-certificates tzdata
+# BROWSER=true adds Chromium (about 1 GB) for browser workflows; workers without it skip browser runs
+ARG BROWSER=false
+RUN apk add --no-cache tini ca-certificates tzdata \
+ && if [ "$BROWSER" = "true" ]; then apk add --no-cache chromium font-noto; fi
 COPY --from=k6 /usr/bin/k6 /usr/bin/k6
 WORKDIR /app/server
 COPY --from=deps /app/server/node_modules ./node_modules

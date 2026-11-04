@@ -168,6 +168,7 @@ export interface AggState {
   errorCodes: [string, number][];
   checks: [string, { pass: number; fail: number }][];
   abortSteps: [string, number][];
+  blocked: [string, number][];
 }
 
 function addCounts(into: Map<string, number>, from: [string, number][]) {
@@ -226,6 +227,8 @@ export class Aggregator {
   errorCodes = new Map<string, number>();
   checks = new Map<string, { pass: number; fail: number }>();
   abortSteps = new Map<string, number>();
+  /** Requests a browser page tried to send to hosts outside the allowlist, by host */
+  blocked = new Map<string, number>();
 
   constructor(private onSlice: (s: Slice) => void) {}
 
@@ -272,6 +275,9 @@ export class Aggregator {
       case 'flow_completed':
       case 'flow_aborted':
       case 'flow_duration':
+      case 'browser_step_duration':
+      case 'browser_step_failed':
+      case 'browser_blocked':
         break;
       default:
         return;
@@ -296,13 +302,7 @@ export class Aggregator {
         b.reqs++;
         this.totalReqs++;
         this.total.add(v);
-        const key = `${tags.flow ?? '-'}\u001f${tags.step ?? tags.name ?? '-'}`;
-        let s = this.steps.get(key);
-        if (!s) {
-          s = { flow: tags.flow ?? '-', step: tags.step ?? tags.name ?? '-', histo: new Histo(), fails: 0 };
-          this.steps.set(key, s);
-        }
-        s.histo.add(v);
+        this.step(tags.flow ?? '-', tags.step ?? tags.name ?? '-').histo.add(v);
         const st = tags.status ?? '0';
         this.statuses.set(st, (this.statuses.get(st) ?? 0) + 1);
         if (tags.error_code) this.errorCodes.set(tags.error_code, (this.errorCodes.get(tags.error_code) ?? 0) + 1);
@@ -362,7 +362,27 @@ export class Aggregator {
       case 'flow_duration':
         this.flow(tags.flow ?? '-').duration.add(v);
         break;
+      // browser steps share the step table with HTTP steps but stay out of the request totals
+      case 'browser_step_duration':
+        this.step(tags.flow ?? '-', tags.step ?? '-').histo.add(v);
+        break;
+      case 'browser_step_failed':
+        this.step(tags.flow ?? '-', tags.step ?? '-').fails += v;
+        break;
+      case 'browser_blocked':
+        this.blocked.set(tags.host ?? '?', (this.blocked.get(tags.host ?? '?') ?? 0) + v);
+        break;
     }
+  }
+
+  private step(flow: string, step: string): StepAgg {
+    const key = `${flow}\u001f${step}`;
+    let s = this.steps.get(key);
+    if (!s) {
+      s = { flow, step, histo: new Histo(), fails: 0 };
+      this.steps.set(key, s);
+    }
+    return s;
   }
 
   /** Emits completed seconds, allowing for late data (lag seconds). */
@@ -409,6 +429,7 @@ export class Aggregator {
       errorCodes: [...this.errorCodes],
       checks: [...this.checks],
       abortSteps: [...this.abortSteps],
+      blocked: [...this.blocked],
     };
   }
 
@@ -442,6 +463,7 @@ export class Aggregator {
     addCounts(this.statuses, o.statuses);
     addCounts(this.errorCodes, o.errorCodes);
     addCounts(this.abortSteps, o.abortSteps);
+    addCounts(this.blocked, o.blocked ?? []);
     for (const [name, c] of o.checks) {
       const cur = this.checks.get(name) ?? { pass: 0, fail: 0 };
       this.checks.set(name, { pass: cur.pass + c.pass, fail: cur.fail + c.fail });
@@ -482,6 +504,7 @@ export class Aggregator {
       statuses: top(this.statuses),
       errorCodes: top(this.errorCodes),
       abortedAt: top(this.abortSteps),
+      blockedHosts: top(this.blocked),
       checks: [...this.checks.entries()].map(([name, c]) => ({ name, ...c })),
     };
   }

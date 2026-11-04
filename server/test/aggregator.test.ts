@@ -167,3 +167,22 @@ describe('distributed runs', () => {
     expect(s.steps[0]).toMatchObject({ count: 2, fails: 1 });
   });
 });
+
+describe('browser steps', () => {
+  test('join the step table and blocked hosts, but stay out of the request totals', () => {
+    const agg = new Aggregator(() => {});
+    const t = { flow: 'UI', step: 'Home' };
+    agg.line(point('browser_step_duration', 100, 420, t));
+    agg.line(point('browser_step_duration', 1100, 380, t));
+    agg.line(point('browser_step_failed', 1100, 1, t));
+    agg.line(point('browser_blocked', 1200, 2, { host: 'cdn.example.net' }));
+    const other = new Aggregator(() => {});
+    other.line(point('browser_blocked', 300, 1, { host: 'cdn.example.net' }));
+    agg.mergeState(other.exportState());
+    const s = agg.summary(2, { rps: 0, vus: 1 });
+    expect(s.requests).toBe(0);
+    expect(s.steps).toHaveLength(1);
+    expect(s.steps[0]).toMatchObject({ flow: 'UI', step: 'Home', count: 2, fails: 1 });
+    expect(s.blockedHosts).toEqual([{ key: 'cdn.example.net', count: 3 }]);
+  });
+});

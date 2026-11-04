@@ -100,6 +100,8 @@ export const runs = pgTable(
     workerId: text(),
     /** Number of workers the run is split across (1 = not distributed); workerId is the lead worker */
     shards: integer().notNull().default(1),
+    /** Runs browser workflows, so only workers with Chromium may take it (or its helper slots) */
+    browser: boolean().notNull().default(false),
     summary: jsonb().$type<Record<string, any>>(),
     capacity: jsonb().$type<Record<string, any>>(),
     thresholdsPassed: boolean(),

@@ -89,6 +89,7 @@ export default function WorkflowsPage() {
                     <td className="px-4 py-2.5">
                       <div className="flex gap-1">
                         <StatusBadge status={w.status} />
+                        {w.definition?.engine === 'browser' && <Badge tone="accent">{t('Browser')}</Badge>}
                         {w.source !== 'panel' && <Badge tone="accent">{sourceLabel(w.source)}</Badge>}
                       </div>
                     </td>

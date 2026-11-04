@@ -87,6 +87,8 @@ jobs:
       PUBLIC_URL: http://localhost:8080
       # two workers, so the smoke test can split a run across them
       WORKER_REPLICAS: 2
+      # and one with Chromium, for the browser workflow step
+      BROWSER_WORKER_REPLICAS: 1
     steps:
       - uses: actions/checkout@v4
 

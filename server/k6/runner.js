@@ -6,6 +6,7 @@ import { check, sleep } from 'k6';
 import { parseHTML } from 'k6/html';
 import { Counter, Trend } from 'k6/metrics';
 import exec from 'k6/execution';
+import { browser } from 'k6/browser';
 
 const CONFIG = JSON.parse(open(__ENV.RUNNER_CONFIG));
 
@@ -14,9 +15,14 @@ export const options = CONFIG.options;
 const flowCompleted = new Counter('flow_completed');
 const flowAborted = new Counter('flow_aborted');
 const flowDuration = new Trend('flow_duration', true);
+// browser steps aren't HTTP requests: their timings and failures get their own metrics
+const browserStepDuration = new Trend('browser_step_duration', true);
+const browserStepFailed = new Counter('browser_step_failed');
+const browserBlocked = new Counter('browser_blocked');
 
 const ALLOWED = CONFIG.allowedHosts.map((h) => h.toLowerCase());
-const TOTAL_WEIGHT = CONFIG.flows.reduce((a, f) => a + f.weight, 0);
+const HTTP_FLOWS = CONFIG.flows.filter((f) => f.engine !== 'browser');
+const BROWSER_FLOWS = CONFIG.flows.filter((f) => f.engine === 'browser');
 
 // Persistent per-VU cookie jar (for flows with resetSession=false)
 let vuJar = null;
@@ -461,14 +467,14 @@ function runSteps(steps, ctx, flowName) {
   return true;
 }
 
-function pickFlow() {
-  if (CONFIG.flows.length === 1) return CONFIG.flows[0];
-  let r = Math.random() * TOTAL_WEIGHT;
-  for (const f of CONFIG.flows) {
+function pickFlow(flows) {
+  if (flows.length === 1) return flows[0];
+  let r = Math.random() * flows.reduce((a, f) => a + f.weight, 0);
+  for (const f of flows) {
     r -= f.weight;
     if (r <= 0) return f;
   }
-  return CONFIG.flows[CONFIG.flows.length - 1];
+  return flows[flows.length - 1];
 }
 
 function datasetRow() {
@@ -480,22 +486,193 @@ function datasetRow() {
   return out;
 }
 
-export default function () {
-  const flow = pickFlow();
-  if (!vuJar) vuJar = http.cookieJar();
-  const ctx = {
-    vars: Object.assign({ baseUrl: CONFIG.baseUrl }, CONFIG.variables, flow.variables),
-    data: datasetRow(),
-    jar: flow.resetSession ? new http.CookieJar() : vuJar,
-  };
+function newCtx(flow, jar) {
+  const ctx = { vars: Object.assign({ baseUrl: CONFIG.baseUrl }, CONFIG.variables, flow.variables), data: datasetRow(), jar };
   // site/flow variables may themselves contain templates
   for (const k of Object.keys(ctx.vars)) ctx.vars[k] = render(ctx.vars[k], ctx);
+  return ctx;
+}
+
+export default function () {
+  const flow = pickFlow(HTTP_FLOWS);
+  if (!vuJar) vuJar = http.cookieJar();
+  const ctx = newCtx(flow, flow.resetSession ? new http.CookieJar() : vuJar);
 
   const start = Date.now();
   const ok = runSteps(flow.steps, ctx, flow.name);
   if (ok) {
     flowCompleted.add(1, { flow: flow.name });
     flowDuration.add(Date.now() - start, { flow: flow.name });
+  }
+}
+
+// ---------------------------------------------------------------------------
+// browser workflows (k6/browser, Chromium)
+// ---------------------------------------------------------------------------
+
+async function browserStep(step, ctx, page, flowName) {
+  const name = step.name || step.type;
+  const tags = { flow: flowName, step: name };
+  const timeout = step.timeoutMs || 30000;
+  const sel = step.selector ? render(step.selector, ctx) : '';
+  const start = Date.now();
+  const entry = { flow: flowName, step: name, method: step.type.toUpperCase(), url: undefined, status: undefined };
+  const extracted = {};
+  let ok = true;
+  let error;
+  try {
+    switch (step.type) {
+      case 'goto': {
+        const url = resolveUrl(step.url, ctx);
+        entry.url = url;
+        if (!hostAllowed(url)) throw new Error('host not allowed');
+        const res = await page.goto(url, { waitUntil: step.waitUntil || 'load', timeout });
+        if (res) {
+          entry.status = res.status();
+          if (entry.status >= 400) {
+            ok = false;
+            error = `HTTP ${entry.status}`;
+          }
+        }
+        break;
+      }
+      case 'click':
+      case 'press': {
+        const loc = page.locator(sel);
+        const act = () => (step.type === 'click' ? loc.click({ timeout }) : loc.press(render(step.key, ctx), { timeout }));
+        if (step.waitForNavigation) await Promise.all([page.waitForNavigation({ timeout }), act()]);
+        else await act();
+        break;
+      }
+      case 'fill':
+        await page.locator(sel).fill(String(render(step.value, ctx)), { timeout });
+        break;
+      case 'select':
+        await page.locator(sel).selectOption(String(render(step.value, ctx)), { timeout });
+        break;
+      case 'waitFor':
+        await page.locator(sel).waitFor({ state: step.state || 'visible', timeout });
+        break;
+      case 'expect': {
+        if (step.urlContains) {
+          const want = render(step.urlContains, ctx);
+          if (page.url().indexOf(want) === -1) {
+            ok = false;
+            error = `URL does not contain "${want}": ${page.url()}`;
+          }
+        }
+        if (ok && sel) {
+          const loc = page.locator(sel);
+          await loc.waitFor({ state: step.visible === false ? 'hidden' : 'visible', timeout });
+          if (step.textContains && step.visible !== false) {
+            const want = render(step.textContains, ctx);
+            const text = (await loc.textContent()) || '';
+            if (text.indexOf(want) === -1) {
+              ok = false;
+              error = `text does not contain "${want}": "${truncate(text.trim(), 120)}"`;
+            }
+          }
+        }
+        break;
+      }
+      case 'read': {
+        const values = [];
+        for (const el of await page.$$(sel)) {
+          if (values.length >= 500) break;
+          const v = step.attr ? await el.getAttribute(step.attr) : await el.textContent();
+          if (v !== undefined && v !== null && String(v).trim() !== '') {
+            values.push(step.attr && /^(href|src|action)$/.test(step.attr) ? resolveUrl(String(v).trim(), ctx, page.url()) : String(v).trim());
+          }
+        }
+        const picked = pickFrom(values, step.pick);
+        if (picked === undefined) {
+          if (step.required) {
+            ok = false;
+            error = `nothing matched ${sel}`;
+          }
+        } else {
+          ctx.vars[step.var] = picked;
+          extracted[step.var] = truncate(picked, 300);
+        }
+        break;
+      }
+      default:
+        break;
+    }
+  } catch (e) {
+    ok = false;
+    error = String((e && e.message) || e).split('\n')[0];
+  }
+  const ms = Date.now() - start;
+  browserStepDuration.add(ms, tags);
+  if (!ok) browserStepFailed.add(1, tags);
+  // expectations also count as checks, so they show up next to the HTTP checks
+  if (step.type === 'expect') check(null, { [`${name}: expect`]: () => ok }, tags);
+  debugLog(Object.assign(entry, { url: entry.url || page.url(), durationMs: ms, ok, error, extracted }));
+  return ok;
+}
+
+async function runBrowserSteps(steps, ctx, page, flowName) {
+  for (const step of steps) {
+    if (!shouldRun(step)) continue;
+    switch (step.type) {
+      case 'think': {
+        const min = step.min || 0;
+        const max = Math.max(min, step.max || min);
+        if (!CONFIG.debug) await page.waitForTimeout((min + Math.random() * (max - min)) * 1000);
+        break;
+      }
+      case 'set':
+        for (const k of Object.keys(step.vars || {})) ctx.vars[k] = renderDeep(step.vars[k], ctx);
+        break;
+      case 'group': {
+        const r = step.repeat;
+        const n = r ? randInt(r.min, Math.max(r.min, r.max)) : 1;
+        for (let i = 0; i < n; i++) {
+          if (!(await runBrowserSteps(step.steps || [], ctx, page, flowName))) {
+            if (step.abortOnFail === false) break;
+            return false;
+          }
+        }
+        break;
+      }
+      default: {
+        const ok = await browserStep(step, ctx, page, flowName);
+        if (!ok && step.abortOnFail !== false) {
+          flowAborted.add(1, { flow: flowName, step: step.name || step.type });
+          return false;
+        }
+      }
+    }
+  }
+  return true;
+}
+
+export async function browserFlow() {
+  const flow = pickFlow(BROWSER_FLOWS);
+  const ctx = newCtx(flow, null);
+  const headers = {};
+  for (const k of Object.keys(CONFIG.headers)) headers[k] = String(render(CONFIG.headers[k], ctx));
+  // every iteration is a new visitor: a fresh context has no cookies or storage
+  const context = await browser.newContext({ ignoreHTTPSErrors: !!CONFIG.options.insecureSkipTLSVerify, extraHTTPHeaders: headers });
+  const page = await context.newPage();
+  // Chromium already can't reach other hosts (see browserEnv in the executor); this also counts what was blocked
+  await page.route(/.*/, async (route) => {
+    const url = route.request().url();
+    if (/^(data|blob|about):/i.test(url) || hostAllowed(url)) return route.continue();
+    browserBlocked.add(1, { host: hostOf(url) || url.split(':')[0] });
+    return route.abort();
+  });
+  const start = Date.now();
+  try {
+    const ok = await runBrowserSteps(flow.steps, ctx, page, flow.name);
+    if (ok) {
+      flowCompleted.add(1, { flow: flow.name });
+      flowDuration.add(Date.now() - start, { flow: flow.name });
+    }
+  } finally {
+    await page.close();
+    await context.close();
   }
 }
 

@@ -61,6 +61,7 @@ CI (`.github/workflows/ci.yml`) runs all of the above on every push and PR, then
 - **Business logic** goes in `services.ts` so REST and MCP behave the same. Throw `HttpError(status, message, details?)` for user-facing errors.
 - **Colors:** use the theme tokens (`bg-surface`, `text-ink-2`, `text-tint-blue`, `SERIES.s1` …), never hex values in components. Light-theme values live in `web/src/index.css` under `:root[data-theme='light']`.
 - **Distributed runs** (`options.workers` > 1 → `runs.shards`): shard 0 is the lead worker and owns the run row; helpers claim slots with Redis `SET NX`, run k6 with `--paused` + execution segments, and send slices/steps/final state to the lead through a Redis list (`keys.inbox`). Only the lead writes to `runs`/`run_metrics`. Anything a run reports (summary fields, warnings) must be mergeable across workers.
+- **Browser workflows** (`definition.engine: 'browser'`): steps run in Chromium via `k6/browser` (`browserFlow` in `runner.js`, async). HTTP and browser steps never mix in one workflow (`checkEngine`). Runs with browser flows set `runs.browser` and are only claimed by workers whose `K6_BROWSER_EXECUTABLE_PATH` exists (the `BROWSER=true` image). Host safety is enforced twice here too: Chromium's proxy bypass list (`browserEnv` in the executor) and `page.route` in the runner. Keep both.
 - **Style:** TypeScript strict, ESM, 2-space indent, single quotes, no default exports on the server. Match the surrounding code; keep comments short and about *why*.
 
 ## Safety rules (do not weaken)

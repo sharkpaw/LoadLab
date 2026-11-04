@@ -89,6 +89,55 @@ export const IncludeStepSchema = z.object({
   probability,
 });
 
+// Browser steps (engine: "browser") drive a real Chromium page through k6/browser.
+const browserCommon = { ...common, timeoutMs: z.number().int().positive().max(120_000).optional() };
+const selector = z.string().min(1);
+
+export const GotoStepSchema = z.object({
+  type: z.literal('goto'),
+  ...browserCommon,
+  url: z.string().min(1),
+  waitUntil: z.enum(['load', 'domcontentloaded', 'networkidle']).optional(),
+});
+export const ClickStepSchema = z.object({ type: z.literal('click'), ...browserCommon, selector, waitForNavigation: z.boolean().optional() });
+export const FillStepSchema = z.object({ type: z.literal('fill'), ...browserCommon, selector, value: z.string() });
+export const SelectStepSchema = z.object({ type: z.literal('select'), ...browserCommon, selector, value: z.string() });
+export const PressStepSchema = z.object({
+  type: z.literal('press'),
+  ...browserCommon,
+  selector,
+  key: z.string().min(1),
+  waitForNavigation: z.boolean().optional(),
+});
+export const WaitForStepSchema = z.object({
+  type: z.literal('waitFor'),
+  ...browserCommon,
+  selector,
+  state: z.enum(['visible', 'hidden', 'attached', 'detached']).optional(),
+});
+export const ExpectStepSchema = z
+  .object({
+    type: z.literal('expect'),
+    ...browserCommon,
+    selector: z.string().min(1).optional(),
+    visible: z.boolean().optional(),
+    textContains: z.string().optional(),
+    urlContains: z.string().optional(),
+  })
+  .refine((s) => s.selector || s.urlContains, 'expect needs a selector or urlContains');
+export const ReadStepSchema = z.object({
+  type: z.literal('read'),
+  ...browserCommon,
+  selector,
+  var: ExtractSchema.shape.var,
+  attr: z.string().optional(),
+  pick: z.enum(['first', 'random', 'all']).optional(),
+  required: z.boolean().optional(),
+});
+
+export const BROWSER_STEP_TYPES = ['goto', 'click', 'fill', 'select', 'press', 'waitFor', 'expect', 'read'] as const;
+export const HTTP_STEP_TYPES = ['request', 'page'] as const;
+
 export type Check = z.infer<typeof CheckSchema>;
 export type Extract = z.infer<typeof ExtractSchema>;
 export type RequestStep = z.infer<typeof RequestStepSchema>;
@@ -96,6 +145,15 @@ export type PageStep = z.infer<typeof PageStepSchema>;
 export type ThinkStep = z.infer<typeof ThinkStepSchema>;
 export type SetStep = z.infer<typeof SetStepSchema>;
 export type IncludeStep = z.infer<typeof IncludeStepSchema>;
+export type BrowserStep =
+  | z.infer<typeof GotoStepSchema>
+  | z.infer<typeof ClickStepSchema>
+  | z.infer<typeof FillStepSchema>
+  | z.infer<typeof SelectStepSchema>
+  | z.infer<typeof PressStepSchema>
+  | z.infer<typeof WaitForStepSchema>
+  | z.infer<typeof ExpectStepSchema>
+  | z.infer<typeof ReadStepSchema>;
 export type GroupStep = {
   type: 'group';
   id?: string;
@@ -105,7 +163,7 @@ export type GroupStep = {
   repeat?: { min: number; max: number };
   steps: Step[];
 };
-export type Step = RequestStep | PageStep | ThinkStep | SetStep | IncludeStep | GroupStep;
+export type Step = RequestStep | PageStep | ThinkStep | SetStep | IncludeStep | GroupStep | BrowserStep;
 
 export const StepSchema: z.ZodType<Step> = z.lazy(() =>
   z.discriminatedUnion('type', [
@@ -115,6 +173,14 @@ export const StepSchema: z.ZodType<Step> = z.lazy(() =>
     SetStepSchema,
     IncludeStepSchema,
     GroupStepSchema,
+    GotoStepSchema,
+    ClickStepSchema,
+    FillStepSchema,
+    SelectStepSchema,
+    PressStepSchema,
+    WaitForStepSchema,
+    ExpectStepSchema,
+    ReadStepSchema,
   ]),
 ) as unknown as z.ZodType<Step>;
 
@@ -125,7 +191,11 @@ const GroupStepSchema = z.object({
   steps: z.array(z.lazy(() => StepSchema)),
 });
 
+export const WORKFLOW_ENGINES = ['http', 'browser'] as const;
+
 export const WorkflowDefinitionSchema = z.object({
+  /** http (default): protocol-level requests. browser: a real Chromium page (k6/browser), for front-end metrics. */
+  engine: z.enum(WORKFLOW_ENGINES).optional(),
   variables: z.record(z.string(), z.string()).optional(),
   resetSession: z.boolean().optional(),
   steps: z.array(StepSchema).min(1, 'at least one step is required'),
@@ -183,6 +253,8 @@ export const PlanConfigSchema = z.object({
       gracefulStopSec: z.number().int().min(0).max(300).optional(),
       /** Split the test across this many workers (k6 execution segments); each runs 1/N of the VUs and rate. */
       workers: z.number().int().min(1).max(32).optional(),
+      /** Browser VUs that run the plan's browser workflows next to its HTTP load (only for mixed plans). */
+      browserVus: z.number().int().min(1).max(100).optional(),
     })
     .default({}),
 });
@@ -230,6 +302,23 @@ A workflow is the sequence of steps a virtual user (VU) performs in order on eve
    { "type":"group", "name":"Browse products", "probability":0.6, "repeat":{"min":1,"max":4}, "steps":[ ... ] }
 6. include – runs another workflow (shared module, e.g. "Log in") in place
    { "type":"include", "workflowId":"<uuid>" }
+
+## Browser workflows (front-end metrics)
+{ "engine":"browser", "steps":[ ... ] } runs the steps in a real Chromium page and records Web Vitals
+(LCP, FCP, CLS, INP, TTFB). Browser VUs are expensive (about half a CPU core and 200 MB each), so a typical
+plan mixes HTTP workflows for the load with a few browser VUs ("options.browserVus", default 1) that measure
+what users see. A plan with only browser workflows runs its load profile with browser VUs (MAX_BROWSER_VUS caps it).
+Steps (plus think, set, group and include of other browser workflows):
+   { "type":"goto", "name":"Home", "url":"/", "waitUntil":"load" }          waitUntil: load | domcontentloaded | networkidle
+   { "type":"click", "name":"Open product", "selector":"a.product", "waitForNavigation":true }
+   { "type":"fill", "name":"Email", "selector":"#email", "value":"{{data.users.email}}" }
+   { "type":"select", "selector":"select#size", "value":"M" }
+   { "type":"press", "selector":"#search", "key":"Enter", "waitForNavigation":true }
+   { "type":"waitFor", "selector":".cart-count", "state":"visible" }      state: visible | hidden | attached | detached
+   { "type":"expect", "name":"Cart shows item", "selector":".cart", "textContains":"1 item" }   or "urlContains":"/checkout", "visible":false
+   { "type":"read", "selector":"h1", "var":"title" }                       attr reads an attribute; pick: first | random | all
+Selectors are Playwright-style CSS (also "text=Buy now"). timeoutMs per step (default 30000).
+Requests to hosts outside the site's allowed hosts are blocked (third-party scripts, analytics) and reported.
 
 ## Common fields
 - probability (0..1): the step runs with this probability (funnel: 60% click a product, 10% buy).

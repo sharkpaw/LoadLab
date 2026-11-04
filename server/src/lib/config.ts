@@ -49,6 +49,9 @@ export const env = createEnv({
     MAX_VUS: int(5000),
     MAX_RATE: int(20000),
     MAX_DURATION_SEC: int(4 * 3600),
+    MAX_BROWSER_VUS: int(5),
+    /** Chromium for browser workflows; a worker only takes browser runs when this file exists. */
+    K6_BROWSER_EXECUTABLE_PATH: z.string().default('/usr/bin/chromium-browser'),
   },
   runtimeEnv: process.env,
   emptyStringAsUndefined: true,
@@ -83,6 +86,7 @@ export const config = {
   mcpOAuth: env.MCP_OAUTH && /^(https:\/\/|http:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d+)?(\/|$))/.test(env.PUBLIC_URL ?? 'http://localhost:8080'),
   mcpResource: `${trimSlash(env.PUBLIC_URL ?? 'http://localhost:8080')}/mcp`,
   k6Bin: env.K6_BIN,
+  browserPath: env.K6_BROWSER_EXECUTABLE_PATH,
   runnerPath: env.RUNNER_PATH,
   webDist: env.WEB_DIST,
   migrationsDir: path.join(root, 'migrations'),
@@ -91,6 +95,7 @@ export const config = {
     maxVus: env.MAX_VUS,
     maxRate: env.MAX_RATE,
     maxDurationSec: env.MAX_DURATION_SEC,
+    maxBrowserVus: env.MAX_BROWSER_VUS,
   },
 };
 

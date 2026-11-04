@@ -16,6 +16,8 @@ const ID = {
   login: '22222222-2222-4222-8222-222222222222',
   loopA: '33333333-3333-4333-8333-333333333333',
   loopB: '44444444-4444-4444-8444-444444444444',
+  ui: '77777777-7777-4777-8777-777777777777',
+  badUi: '88888888-8888-4888-8888-888888888888',
 };
 
 const workflows: Record<string, WorkflowRow> = {
@@ -28,6 +30,21 @@ const workflows: Record<string, WorkflowRow> = {
   [ID.login]: { id: ID.login, name: 'Sign in', status: 'active', definition: { variables: { user: 'a' }, steps: [{ type: 'request', name: 'Login', method: 'POST', url: '/api/login' }] } },
   [ID.loopA]: { id: ID.loopA, name: 'A', status: 'active', definition: { steps: [{ type: 'include', workflowId: ID.loopB }] } },
   [ID.loopB]: { id: ID.loopB, name: 'B', status: 'active', definition: { steps: [{ type: 'include', workflowId: ID.loopA }] } },
+  [ID.ui]: {
+    id: ID.ui,
+    name: 'Storefront UI',
+    status: 'active',
+    definition: {
+      engine: 'browser',
+      steps: [
+        { type: 'goto', name: 'Home', url: '/' },
+        { type: 'click', name: 'Open product', selector: 'a.product', waitForNavigation: true },
+        { type: 'expect', name: 'Price shown', selector: '.price' },
+      ],
+    },
+  },
+  // a browser workflow that includes an HTTP module
+  [ID.badUi]: { id: ID.badUi, name: 'Bad UI', status: 'active', definition: { engine: 'browser', steps: [{ type: 'include', workflowId: ID.login }] } },
 };
 const load = async (id: string) => workflows[id] ?? null;
 
@@ -109,5 +126,43 @@ describe('compileRun', () => {
     await expect(compileRun(site, { flows, profile: { kind: 'constant_vus', vus: 2 }, options: { workers: 3 } }, load)).rejects.toBeInstanceOf(CompileError);
     const dbg = await compileRun(site, { flows, profile: { kind: 'debug' }, options: { workers: 4 } }, load);
     expect(dbg.runner.meta.shards).toBe(1);
+  });
+});
+
+describe('browser workflows', () => {
+  test('a browser-only plan runs its profile in Chromium', async () => {
+    const r = await compileRun(site, { flows: [{ workflowId: ID.ui, weight: 1 }], profile: { kind: 'constant_vus', vus: 2, duration: 60 } }, load);
+    const main = (r.runner.options.scenarios as any).main;
+    expect(main).toMatchObject({ executor: 'constant-vus', vus: 2, exec: 'browserFlow', options: { browser: { type: 'chromium' } } });
+    expect(r.runner.meta.browserVus).toBe(2);
+    expect(r.runner.flows[0].engine).toBe('browser');
+  });
+
+  test('next to HTTP flows they get their own small scenario', async () => {
+    const flows = [{ workflowId: ID.main, weight: 3 }, { workflowId: ID.ui, weight: 1 }];
+    const r = await compileRun(site, { flows, profile: { kind: 'constant_vus', vus: 50, duration: 120 }, options: { browserVus: 3 } }, load);
+    const sc = r.runner.options.scenarios as any;
+    expect(sc.main.exec).toBeUndefined();
+    expect(sc.browser).toMatchObject({ executor: 'constant-vus', vus: 3, duration: '120s', exec: 'browserFlow' });
+    expect(r.runner.meta.browserVus).toBe(3);
+    const http = await compileRun(site, { flows: [{ workflowId: ID.main, weight: 1 }], profile: { kind: 'smoke' } }, load);
+    expect(http.runner.meta.browserVus).toBe(0);
+  });
+
+  test('MAX_BROWSER_VUS caps browser VUs', async () => {
+    const flows = [{ workflowId: ID.ui, weight: 1 }];
+    await expect(compileRun(site, { flows, profile: { kind: 'constant_vus', vus: 50 } }, load)).rejects.toBeInstanceOf(CompileError);
+  });
+
+  test('steps must match the workflow engine, includes too', async () => {
+    const err = await compileRun(site, { flows: [{ workflowId: ID.badUi, weight: 1 }], profile: { kind: 'smoke' } }, load).catch((e) => e);
+    expect(err).toBeInstanceOf(CompileError);
+    expect(err.errors.join('\n')).toContain('"request" steps are not allowed in a browser workflow');
+  });
+
+  test('goto URLs are checked against the allowlist', async () => {
+    workflows[ID.badUi].definition = { engine: 'browser', steps: [{ type: 'goto', name: 'Elsewhere', url: 'https://evil.com/' }] };
+    const err = await compileRun(site, { flows: [{ workflowId: ID.badUi, weight: 1 }], profile: { kind: 'smoke' } }, load).catch((e) => e);
+    expect(err.errors.join('\n')).toContain('evil.com is not among');
   });
 });

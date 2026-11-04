@@ -44,9 +44,45 @@ export function procStat(pid: number): { cpuTicks: number; rssBytes: number } | 
   return { cpuTicks: utime + stime, rssBytes: rssPages * 4096 };
 }
 
+/**
+ * CPU ticks and RSS of a process and all its descendants (k6 browser runs spawn Chromium processes).
+ * Children's ticks include reaped children (cutime/cstime), so the total doesn't drop when a page closes.
+ */
+export function treeStat(pid: number): { cpuTicks: number; rssBytes: number } | null {
+  let entries: string[];
+  try {
+    entries = fs.readdirSync('/proc').filter((e) => /^\d+$/.test(e));
+  } catch {
+    return procStat(pid);
+  }
+  const procs = new Map<number, { ppid: number; ticks: number; rss: number }>();
+  for (const e of entries) {
+    const stat = readFile(`/proc/${e}/stat`);
+    if (!stat) continue;
+    const f = stat.slice(stat.lastIndexOf(')') + 2).split(' ');
+    procs.set(Number(e), { ppid: Number(f[1]), ticks: Number(f[11]) + Number(f[12]) + Number(f[13]) + Number(f[14]), rss: Number(f[21]) * 4096 });
+  }
+  const root = procs.get(pid);
+  if (!root) return null;
+  const children = new Map<number, number[]>();
+  for (const [id, p] of procs) children.set(p.ppid, [...(children.get(p.ppid) ?? []), id]);
+  let cpuTicks = 0;
+  let rssBytes = 0;
+  const todo = [pid];
+  while (todo.length) {
+    const id = todo.pop()!;
+    const p = procs.get(id);
+    if (!p) continue;
+    cpuTicks += p.ticks;
+    rssBytes += p.rss;
+    todo.push(...(children.get(id) ?? []));
+  }
+  return { cpuTicks, rssBytes };
+}
+
 const CLK_TCK = 100;
 
-/** Periodic CPU% sampler for a PID. */
+/** Periodic CPU% sampler for a PID and its child processes. */
 export class ProcSampler {
   private last: { ticks: number; at: number } | null = null;
   maxCpu = 0;
@@ -57,13 +93,14 @@ export class ProcSampler {
   constructor(private pid: number) {}
 
   sample(): { cpu: number; rss: number } | null {
-    const s = procStat(this.pid);
+    const s = treeStat(this.pid);
     if (!s) return null;
     const now = Date.now();
     let cpu = 0;
     if (this.last) {
       const dt = (now - this.last.at) / 1000;
-      if (dt > 0) cpu = ((s.cpuTicks - this.last.ticks) / CLK_TCK / dt) * 100;
+      // a child that exits before its parent reaps it takes its ticks along; never report negative CPU
+      if (dt > 0) cpu = Math.max(0, ((s.cpuTicks - this.last.ticks) / CLK_TCK / dt) * 100);
     }
     this.last = { ticks: s.cpuTicks, at: now };
     if (cpu > this.maxCpu) this.maxCpu = cpu;

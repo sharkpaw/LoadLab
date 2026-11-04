@@ -1,0 +1,1 @@
+ALTER TABLE "runs" ADD COLUMN "browser" boolean DEFAULT false NOT NULL;

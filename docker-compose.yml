@@ -58,6 +58,7 @@ services:
       MAX_VUS: ${MAX_VUS:-5000}
       MAX_RATE: ${MAX_RATE:-20000}
       MAX_DURATION_SEC: ${MAX_DURATION_SEC:-14400}
+      MAX_BROWSER_VUS: ${MAX_BROWSER_VUS:-5}
       TZ: ${TZ:-UTC}
     depends_on:
       postgres: { condition: service_healthy }
@@ -93,6 +94,35 @@ services:
     sysctls:
       net.ipv4.ip_local_port_range: "1024 65535"
       net.ipv4.tcp_tw_reuse: "1"
+
+  # Same worker with Chromium, for browser workflows (front-end metrics). Off by default: the image is
+  # about 1 GB larger and each browser VU needs about half a CPU core and 200 MB.
+  worker-browser:
+    build:
+      context: .
+      args:
+        BROWSER: "true"
+    restart: unless-stopped
+    command: ["bun", "src/worker.ts"]
+    environment:
+      DATABASE_URL: postgres://${SERVICE_USER_POSTGRES:-loadlab}:${SERVICE_PASSWORD_POSTGRES}@postgres:5432/${POSTGRES_DB:-loadlab}
+      REDIS_URL: redis://redis:6379
+      MAX_VUS: ${MAX_VUS:-5000}
+      MAX_RATE: ${MAX_RATE:-20000}
+      MAX_DURATION_SEC: ${MAX_DURATION_SEC:-14400}
+      TZ: ${TZ:-UTC}
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    deploy:
+      replicas: ${BROWSER_WORKER_REPLICAS:-0}
+    stop_grace_period: 70s
+    # Chromium keeps page data in /dev/shm; Docker's 64 MB default crashes tabs
+    shm_size: 1gb
+    ulimits:
+      nofile:
+        soft: 65535
+        hard: 65535
 
 volumes:
   pgdata:

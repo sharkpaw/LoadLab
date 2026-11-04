@@ -151,6 +151,38 @@ step('a run split across two workers merges their results', async () => {
   assert(done.summary.maxVus === 4, `VUs summed across workers (${done.summary.maxVus})`);
 });
 
+// needs the Chromium worker (docker-compose.yml: worker-browser), so only when one is configured
+if (Number(process.env.BROWSER_WORKER_REPLICAS ?? 0) > 0) {
+  step('a browser workflow runs in Chromium', async () => {
+    const wf = await ok('POST', '/api/workflows', {
+      name: 'CI browser',
+      siteId: ctx.site.id,
+      status: 'active',
+      definition: {
+        engine: 'browser',
+        steps: [
+          { type: 'goto', name: 'Home', url: '/' },
+          { type: 'read', name: 'Title', selector: 'h1', var: 'title', required: true },
+          { type: 'expect', name: 'Heading shown', selector: 'h1', textContains: '{{title}}' },
+        ],
+      },
+    });
+    let r: any = null;
+    for (let i = 0; i < 30 && !r; i++) {
+      const res = await call('POST', `/api/workflows/${wf.id}/debug`, { siteId: ctx.site.id });
+      if (res.status === 200 || res.status === 201) r = res.data;
+      else if (res.status === 409) await new Promise((res) => setTimeout(res, 2000));
+      else throw new Error(`debug: ${res.status} ${JSON.stringify(res.data)}`);
+    }
+    assert(r, 'a browser worker came online');
+    const done = await waitRun(r.id, ['completed', 'failed']);
+    assert(done.status === 'completed', `browser run status ${done.status}: ${done.error}`);
+    const trace = done.summary.debug ?? [];
+    assert(trace.length === 3 && trace.every((e: any) => e.ok), `every browser step passed: ${JSON.stringify(trace)}`);
+    assert(trace[0].method === 'GOTO' && trace[0].status === 200, 'the page loaded');
+  });
+}
+
 step('MCP server lists tools with an API key', async () => {
   const token = await ok('POST', '/api/tokens', { name: 'ci' });
   const res = await fetch(`${BASE}/mcp`, {
